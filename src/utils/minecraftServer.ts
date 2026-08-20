@@ -38,6 +38,11 @@ export interface LiveServerFetchResult {
   errorMessage?: string;
 }
 
+function getPlayerUuid(name: string, explicitUuid?: string): string {
+  if (explicitUuid && explicitUuid.length > 5) return explicitUuid;
+  return `uuid-${name.toLowerCase().replace(/[^a-z0-9]/g, '')}`;
+}
+
 /**
  * Fetch real-time status of any Minecraft Java Server using public query APIs (with fallback)
  */
@@ -76,9 +81,9 @@ export async function queryRealMinecraftServer(
         if (data.players?.list && Array.isArray(data.players.list)) {
           data.players.list.forEach((p) => {
             if (typeof p === 'string') {
-              realPlayerList.push({ username: p, uuid: Math.random().toString(36).substring(2, 12) });
+              realPlayerList.push({ username: p, uuid: getPlayerUuid(p) });
             } else if (p && (p as any).name) {
-              realPlayerList.push({ username: (p as any).name, uuid: (p as any).uuid || Math.random().toString(36).substring(2, 12) });
+              realPlayerList.push({ username: (p as any).name, uuid: getPlayerUuid((p as any).name, (p as any).uuid) });
             }
           });
         }
@@ -122,9 +127,10 @@ export async function queryRealMinecraftServer(
         const playerList: Array<{ username: string; uuid: string }> = [];
         if (data.players?.list && Array.isArray(data.players.list)) {
           data.players.list.forEach((p: any) => {
+            const name = p.name_clean || p.name_raw || p.name || 'Player';
             playerList.push({
-              username: p.name_clean || p.name_raw || p.name || 'Player',
-              uuid: p.uuid || Math.random().toString(36).substring(2, 12),
+              username: name,
+              uuid: getPlayerUuid(name, p.uuid),
             });
           });
         }

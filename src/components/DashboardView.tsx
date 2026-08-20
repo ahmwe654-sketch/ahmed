@@ -137,20 +137,20 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
     }
   };
 
-  // Metrics extraction directly from dynamic props (architecture rule compliant)
-  const tpsVal = isOnline ? (metrics?.tps || status?.tps || 20.0) : 0;
-  const msptVal = isOnline ? (metrics?.mspt || 14.2) : 0;
-  const ramUsedMB = isOnline ? (metrics?.ramUsedMB || 5324) : 0;
+  // Metrics extraction directly from real server state
+  const tpsVal = isOnline ? (metrics?.tps !== undefined ? metrics.tps : (status?.tps ?? 20.0)) : 0;
+  const msptVal = isOnline ? (metrics?.mspt !== undefined ? metrics.mspt : (status?.mspt ?? 0)) : 0;
+  const ramUsedMB = isOnline ? (metrics?.ramUsedMB || 0) : 0;
   const ramTotalMB = metrics?.ramTotalMB || 8192;
   const ramUsedGB = (ramUsedMB / 1024).toFixed(1);
   const ramTotalGB = (ramTotalMB / 1024).toFixed(0);
-  const ramPercent = Math.min(100, Math.round((ramUsedMB / ramTotalMB) * 100));
-  const cpuPercent = isOnline ? (metrics?.cpuUsage || 32) : 0;
-  const playersCount = isOnline ? (status?.playersOnline ?? players.length ?? 4) : 0;
+  const ramPercent = Math.min(100, Math.round((ramUsedMB / (ramTotalMB || 1)) * 100));
+  const cpuPercent = isOnline ? (metrics?.cpuUsage || 0) : 0;
+  const playersCount = isOnline ? (status?.playersOnline ?? players.length) : 0;
   const maxPlayers = status?.maxPlayers || 20;
-  const pingVal = isOnline ? (metrics?.pingMs || 42) : 0;
+  const pingVal = isOnline ? (metrics?.pingMs || 0) : 0;
   const pingPct = Math.min(100, Math.round((pingVal / 150) * 100));
-  const uptimeVal = isOnline ? formatUptime(status?.uptimeSeconds || 223200) : '0m';
+  const uptimeVal = isOnline ? formatUptime(status?.uptimeSeconds || 0) : '0m';
 
   // Last updated timestamp
   const lastUpdatedTime = new Date().toLocaleTimeString(lang === 'ar' ? 'ar-EG' : 'en-US', {

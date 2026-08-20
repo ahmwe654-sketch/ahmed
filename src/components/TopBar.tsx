@@ -148,7 +148,7 @@ export const TopBar: React.FC<TopBarProps> = ({
               </span>
             </div>
             <div className="flex items-center gap-2 text-[11px] text-slate-400 font-mono">
-              <span>{serverStatus?.ip || 'aegis-smp.ply.gg'}</span>
+              <span>{serverStatus?.ip || '127.0.0.1'}</span>
               <span>:</span>
               <span>{serverStatus?.port || 25565}</span>
             </div>

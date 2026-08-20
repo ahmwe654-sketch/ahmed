@@ -32,6 +32,7 @@ import {
 import { WelcomeScreen } from './components/WelcomeScreen';
 import { OnboardingModal } from './components/OnboardingModal';
 import { LoginModal } from './components/LoginModal';
+import { ConnectServerScreen } from './components/ConnectServerScreen';
 import { AccountSettingsModal } from './components/AccountSettingsModal';
 import { TopBar } from './components/TopBar';
 import { Sidebar } from './components/Sidebar';
@@ -60,7 +61,7 @@ import { isRTL } from './utils/i18n';
 
 export function App() {
   // Navigation & Session State
-  const [authView, setAuthView] = useState<'welcome' | 'onboarding' | 'login' | 'authenticated'>('welcome');
+  const [authView, setAuthView] = useState<'welcome' | 'onboarding' | 'login' | 'connect-server' | 'authenticated'>('welcome');
   const [activeTab, setActiveTab] = useState<NavigationTab>('dashboard');
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
 
@@ -762,7 +763,7 @@ export function App() {
           lang={lang}
           onComplete={(newProfile) => {
             setUserProfile((prev) => ({ ...prev, ...newProfile }));
-            setAuthView('authenticated');
+            setAuthView('connect-server');
             addToast('success', `Welcome aboard, ${newProfile.name || 'Admin'}!`, 'Setup Completed');
           }}
           onSwitchToLogin={() => setAuthView('login')}
@@ -779,11 +780,33 @@ export function App() {
           lang={lang}
           onSuccess={(profile) => {
             setUserProfile((prev) => ({ ...prev, ...profile }));
-            setAuthView('authenticated');
+            setAuthView('connect-server');
             addToast('success', `Signed in as ${profile.name || 'Ahmed'} (${userProfile.role.toUpperCase()})`);
           }}
           onSwitchToOnboarding={() => setAuthView('onboarding')}
           onClose={() => setAuthView('welcome')}
+        />
+        <ToastContainer toasts={toasts} onDismiss={removeToast} onCloseToast={removeToast} />
+      </>
+    );
+  }
+
+  if (authView === 'connect-server') {
+    return (
+      <>
+        <ConnectServerScreen
+          lang={lang}
+          onConnected={() => {
+            setAuthView('authenticated');
+            addToast('success', 'Minecraft server connected to Aegis Core', 'Uplink Established');
+            fetchFullState();
+            fetchCriticalData();
+          }}
+          onSkipToDemo={() => {
+            setAuthView('authenticated');
+            addToast('info', 'Viewing in sandbox mode. You can connect anytime from Settings.', 'Sandbox Mode');
+          }}
+          onToggleLang={handleToggleLang}
         />
         <ToastContainer toasts={toasts} onDismiss={removeToast} onCloseToast={removeToast} />
       </>
@@ -1084,6 +1107,7 @@ export function App() {
               onSaveSettings={handleSaveSettings}
               onChangeLang={(l) => setLang(l)}
               onToggleLang={handleToggleLang}
+              onOpenConnectServer={() => setAuthView('connect-server')}
             />
           )}
         </main>

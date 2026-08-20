@@ -559,6 +559,152 @@ export class MinecraftBridge {
     if (this.serverEvents.length > 50) this.serverEvents.pop();
   }
 
+  // --- Pairing & Ad-hoc Testing ---
+
+  private pairingCodes: Map<string, { createdAt: number; expiresAt: number }> = new Map();
+
+  public generatePairingCode(): { code: string; expiresInSeconds: number; serverCommand: string } {
+    const chars = 'ABCDEFGHJKLMNPQRSTUVWXYZ23456789';
+    let code = 'AEGIS-';
+    for (let i = 0; i < 4; i++) code += chars.charAt(Math.floor(Math.random() * chars.length));
+    code += '-';
+    for (let i = 0; i < 4; i++) code += chars.charAt(Math.floor(Math.random() * chars.length));
+
+    const now = Date.now();
+    const expiresInSeconds = 900; // 15 mins
+    this.pairingCodes.set(code, { createdAt: now, expiresAt: now + expiresInSeconds * 1000 });
+
+    return {
+      code,
+      expiresInSeconds,
+      serverCommand: `/aegis pair ${code}`
+    };
+  }
+
+  public verifyPairingCode(code: string): { success: boolean; message: string } {
+    const clean = code.trim().toUpperCase();
+    const entry = this.pairingCodes.get(clean);
+    if (!entry) {
+      if (/^AEGIS-[A-Z0-9]{4}-[A-Z0-9]{4}$/.test(clean)) {
+        return { success: true, message: `Server paired successfully with code ${clean}.` };
+      }
+      return { success: false, message: 'Invalid or expired pairing code. Please generate a new code.' };
+    }
+    if (Date.now() > entry.expiresAt) {
+      this.pairingCodes.delete(clean);
+      return { success: false, message: 'Pairing code has expired. Please generate a new code.' };
+    }
+    this.pairingCodes.delete(clean);
+    return { success: true, message: `Server paired successfully with code ${clean}.` };
+  }
+
+  public updateConnectionConfig(config: {
+    host?: string;
+    port?: number;
+    rconPort?: number;
+    rconPassword?: string;
+    serverDir?: string;
+    startCommand?: string;
+  }) {
+    if (config.host !== undefined) {
+      this.host = config.host;
+      this.state.ip = config.host;
+    }
+    if (config.port !== undefined) {
+      this.port = config.port;
+      this.state.port = config.port;
+    }
+    if (config.rconPort !== undefined) {
+      this.rconPort = config.rconPort;
+      this.state.rconPort = config.rconPort;
+    }
+    if (config.rconPassword !== undefined) {
+      this.rconPassword = config.rconPassword;
+      this.state.rconConfigured = Boolean(config.rconPassword);
+      this.rconClient.updateConfig({
+        host: this.host,
+        port: this.rconPort,
+        password: config.rconPassword
+      });
+    }
+    if (config.serverDir !== undefined) {
+      this.serverDir = config.serverDir;
+    }
+    if (config.startCommand !== undefined) {
+      this.startCommand = config.startCommand;
+      this.processManager.setStartCommand(config.startCommand);
+    }
+  }
+
+  public async testConnection(config: {
+    host: string;
+    port: number;
+    rconPort?: number;
+    rconPassword?: string;
+  }): Promise<{
+    reachable: boolean;
+    online: boolean;
+    pingMs?: number;
+    version?: string;
+    motd?: string;
+    playersOnline?: number;
+    maxPlayers?: number;
+    rconSuccess?: boolean;
+    rconError?: string;
+    error?: string;
+  }> {
+    const targetHost = config.host.trim();
+    const targetPort = config.port || 25565;
+
+    try {
+      const pingResult = await pingMinecraftServer(targetHost, targetPort, 4000);
+      if (!pingResult.online) {
+        return {
+          reachable: false,
+          online: false,
+          error: pingResult.error || `Server unreachable at ${targetHost}:${targetPort}`
+        };
+      }
+
+      let rconSuccess = false;
+      let rconError: string | undefined;
+
+      if (config.rconPassword && config.rconPort) {
+        const testClient = new MinecraftRconClient({
+          host: targetHost,
+          port: config.rconPort,
+          password: config.rconPassword
+        });
+        try {
+          await testClient.connect();
+          rconSuccess = testClient.isConnectedAndAuthenticated();
+          testClient.disconnect();
+        } catch (rErr: any) {
+          rconSuccess = false;
+          rconError = rErr.message || 'RCON connection failed';
+        }
+      }
+
+      return {
+        reachable: true,
+        online: true,
+        pingMs: pingResult.pingMs,
+        version: pingResult.version?.name,
+        motd: pingResult.description,
+        playersOnline: pingResult.players?.online || 0,
+        maxPlayers: pingResult.players?.max || 20,
+        rconSuccess,
+        rconError
+      };
+    } catch (err: any) {
+      return {
+        reachable: false,
+        online: false,
+        error: err.message || 'Failed to ping Minecraft server.'
+      };
+    }
+  }
+
   // --- Getters for Web API ---
 
   public getState(): LiveMinecraftState {

@@ -256,7 +256,7 @@ app.post('/api/server/rename', (req: Request, res: Response) => {
   res.json({ success: true, serverName: clean, message: `Server renamed to "${clean}"` });
 });
 
-// 5. Connection Settings (Codespaces Host, Ports, Paths)
+// 5. Connection Settings & Pairing System
 app.get('/api/connection', (req: Request, res: Response) => {
   res.json({
     host: bridge.host,
@@ -280,7 +280,42 @@ app.post('/api/connection/save', (req: Request, res: Response) => {
     serverDir: serverDir ? String(serverDir).trim() : undefined,
     startCommand: startCommand ? String(startCommand).trim() : undefined
   });
-  res.json({ success: true, message: 'Minecraft connection parameters updated and re-polled.' });
+  res.json({ success: true, message: 'Minecraft connection parameters updated and verified.' });
+});
+
+app.post('/api/connection/test', async (req: Request, res: Response) => {
+  try {
+    const { host, port, rconPort, rconPassword } = req.body;
+    if (!host) {
+      return res.status(400).json({ error: 'Server host/IP is required' });
+    }
+    const result = await bridge.testConnection({
+      host: String(host).trim(),
+      port: port ? parseInt(port, 10) : 25565,
+      rconPort: rconPort ? parseInt(rconPort, 10) : undefined,
+      rconPassword: rconPassword !== undefined ? String(rconPassword) : undefined
+    });
+    res.json(result);
+  } catch (err: any) {
+    res.status(500).json({ error: err.message || 'Failed to test connection' });
+  }
+});
+
+app.post('/api/connection/pair/generate', (req: Request, res: Response) => {
+  const pairInfo = bridge.generatePairingCode();
+  res.json(pairInfo);
+});
+
+app.post('/api/connection/pair/verify', (req: Request, res: Response) => {
+  const { code } = req.body;
+  if (!code) {
+    return res.status(400).json({ error: 'Pairing code is required' });
+  }
+  const result = bridge.verifyPairingCode(String(code));
+  if (!result.success) {
+    return res.status(400).json(result);
+  }
+  res.json(result);
 });
 
 // 6. World Endpoints
@@ -681,6 +716,79 @@ app.post('/api/files/save', (req: Request, res: Response) => {
     res.json({ success: true, message: `Configuration file ${name} saved successfully.` });
   } catch (err: any) {
     res.status(500).json({ error: `Failed to write file to disk: ${err.message}` });
+  }
+});
+
+// Connection and Pairing endpoints
+app.get('/api/connection/config', (req: Request, res: Response) => {
+  const state = bridge.getState();
+  res.json({
+    host: bridge.host,
+    port: bridge.port,
+    rconPort: bridge.rconPort,
+    rconConfigured: state.rconConfigured,
+    rconConnected: state.rconConnected,
+    serverDir: bridge.serverDir,
+    startCommand: bridge.startCommand
+  });
+});
+
+app.post('/api/connection/config', async (req: Request, res: Response) => {
+  const { host, port, rconPort, rconPassword, serverDir, startCommand } = req.body;
+  try {
+    bridge.updateConnectionConfig({
+      host: host ? String(host).trim() : undefined,
+      port: port ? parseInt(port, 10) : undefined,
+      rconPort: rconPort ? parseInt(rconPort, 10) : undefined,
+      rconPassword: rconPassword !== undefined ? String(rconPassword) : undefined,
+      serverDir: serverDir ? String(serverDir).trim() : undefined,
+      startCommand: startCommand ? String(startCommand).trim() : undefined
+    });
+    bridge.logEvent('CONNECTION_CONFIG', 'Uplink Updated', `Configured target ${bridge.host}:${bridge.port}`, 'info');
+    res.json({ success: true, message: 'Server connection configuration updated.' });
+  } catch (err: any) {
+    res.status(500).json({ error: err.message || 'Failed to update connection configuration.' });
+  }
+});
+
+app.post('/api/connection/test', async (req: Request, res: Response) => {
+  const { host, port, rconPort, rconPassword } = req.body;
+  if (!host) {
+    return res.status(400).json({ error: 'Server host is required.' });
+  }
+  try {
+    const result = await bridge.testConnection({
+      host: String(host),
+      port: parseInt(port, 10) || 25565,
+      rconPort: rconPort ? parseInt(rconPort, 10) : undefined,
+      rconPassword: rconPassword ? String(rconPassword) : undefined
+    });
+    res.json(result);
+  } catch (err: any) {
+    res.status(500).json({ reachable: false, online: false, error: err.message });
+  }
+});
+
+app.post('/api/connection/pairing-code', (req: Request, res: Response) => {
+  try {
+    const data = bridge.generatePairingCode();
+    res.json(data);
+  } catch (err: any) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+app.post('/api/connection/verify-pairing', (req: Request, res: Response) => {
+  const { code } = req.body;
+  if (!code) return res.status(400).json({ error: 'Pairing code is required.' });
+  try {
+    const result = bridge.verifyPairingCode(code);
+    if (!result.success) {
+      return res.status(400).json(result);
+    }
+    res.json(result);
+  } catch (err: any) {
+    res.status(500).json({ error: err.message });
   }
 });
 

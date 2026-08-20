@@ -29,6 +29,7 @@ interface SettingsViewProps {
   onSaveSettings: (settings: any) => void;
   onChangeLang?: (lang: Language) => void;
   onToggleLang?: () => void;
+  onOpenConnectServer?: () => void;
 }
 
 type SettingsTab = 'all' | 'localization' | 'general' | 'gameplay' | 'world' | 'network' | 'security' | 'advanced';
@@ -38,7 +39,8 @@ export const SettingsView: React.FC<SettingsViewProps> = ({
   lang = 'en',
   onSaveSettings,
   onChangeLang,
-  onToggleLang
+  onToggleLang,
+  onOpenConnectServer
 }) => {
   const [activeCategory, setActiveCategory] = useState<SettingsTab>('all');
   const [hasUnsavedChanges, setHasUnsavedChanges] = useState(false);
@@ -906,7 +908,19 @@ export const SettingsView: React.FC<SettingsViewProps> = ({
                 Network Interfaces, Player Limits &amp; Compression
               </h2>
             </div>
-            <span className="text-[10px] text-slate-500 font-mono">NETWORK</span>
+            {onOpenConnectServer && (
+              <button
+                type="button"
+                onClick={() => {
+                  sound.playClick();
+                  onOpenConnectServer();
+                }}
+                className="px-3 py-1.5 rounded-xl bg-cyan-500/20 hover:bg-cyan-500/30 border border-cyan-500/40 text-cyan-300 text-xs font-bold transition-all flex items-center gap-1.5 cursor-pointer shadow-[0_0_15px_rgba(6,182,212,0.15)]"
+              >
+                <Server className="w-3.5 h-3.5" />
+                <span>Connect Server Setup</span>
+              </button>
+            )}
           </div>
 
           <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-5 text-xs">

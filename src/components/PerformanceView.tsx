@@ -43,13 +43,13 @@ export const PerformanceView: React.FC<PerformanceViewProps> = ({
   const canPurge = userRole === 'owner' || userRole === 'admin';
   const isOnline = status?.status === 'ONLINE' || status?.online !== false;
 
-  const tps = isOnline ? (metrics?.tps || status?.tps || 19.98) : 0;
-  const mspt = isOnline ? (metrics?.mspt || 14.8) : 0;
-  const ramUsed = isOnline ? (metrics?.ramUsedMB || 5324) : 0;
+  const tps = isOnline ? (metrics?.tps !== undefined ? metrics.tps : (status?.tps ?? 20.0)) : 0;
+  const mspt = isOnline ? (metrics?.mspt !== undefined ? metrics.mspt : (status?.mspt ?? 0)) : 0;
+  const ramUsed = isOnline ? (metrics?.ramUsedMB || 0) : 0;
   const ramTotal = metrics?.ramTotalMB || 8192;
-  const cpu = isOnline ? (metrics?.cpuUsage || 28.4) : 0;
-  const chunks = isOnline ? (metrics?.loadedChunks || 1420) : 0;
-  const entities = isOnline ? (metrics?.entitiesCount || 312) : 0;
+  const cpu = isOnline ? (metrics?.cpuUsage || 0) : 0;
+  const chunks = isOnline ? (metrics?.loadedChunks || 0) : 0;
+  const entities = isOnline ? (metrics?.entitiesCount || 0) : 0;
 
   const handlePurge = (type: 'items' | 'monsters' | 'all') => {
     sound.playClick();
