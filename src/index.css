@@ -1,0 +1,199 @@
+@import "tailwindcss";
+
+@layer base {
+  * {
+    border-color: rgba(255, 255, 255, 0.07);
+  }
+  body {
+    font-family: 'Plus Jakarta Sans', system-ui, -apple-system, sans-serif;
+    background-color: #07080b;
+    color: #e2e8f0;
+  }
+  
+  [dir="rtl"] body {
+    font-family: 'Plus Jakarta Sans', system-ui, -apple-system, 'Segoe UI', Tahoma, sans-serif;
+  }
+}
+
+/* Custom Scrollbar for smooth desktop UX */
+.custom-scrollbar::-webkit-scrollbar {
+  width: 5px;
+  height: 5px;
+}
+
+.custom-scrollbar::-webkit-scrollbar-track {
+  background: rgba(0, 0, 0, 0.25);
+}
+
+.custom-scrollbar::-webkit-scrollbar-thumb {
+  background: rgba(255, 255, 255, 0.12);
+  border-radius: 9999px;
+}
+
+.custom-scrollbar::-webkit-scrollbar-thumb:hover {
+  background: rgba(16, 185, 129, 0.5);
+}
+
+/* Cinematic Background Gradients & Ambient Lighting */
+.bg-ambient-deck {
+  background-color: #07080b;
+  background-image: 
+    radial-gradient(circle at 15% 10%, rgba(16, 185, 129, 0.045) 0%, transparent 45%),
+    radial-gradient(circle at 85% 20%, rgba(139, 92, 246, 0.045) 0%, transparent 45%),
+    radial-gradient(circle at 50% 90%, rgba(16, 185, 129, 0.03) 0%, transparent 60%);
+}
+
+.bg-darker-deck {
+  background-color: #020305 !important;
+  background-image: 
+    radial-gradient(circle at 15% 10%, rgba(16, 185, 129, 0.03) 0%, transparent 45%),
+    radial-gradient(circle at 85% 20%, rgba(139, 92, 246, 0.03) 0%, transparent 45%),
+    radial-gradient(circle at 50% 90%, rgba(16, 185, 129, 0.02) 0%, transparent 60%);
+}
+
+/* Glass Panels with subtle borders */
+.glass-panel {
+  background: rgba(11, 13, 19, 0.7);
+  backdrop-filter: blur(18px);
+  -webkit-backdrop-filter: blur(18px);
+  border: 1px solid rgba(255, 255, 255, 0.07);
+  box-shadow: 0 12px 32px -8px rgba(0, 0, 0, 0.7), inset 0 1px 0 rgba(255, 255, 255, 0.04);
+}
+
+.glass-panel-high {
+  background: rgba(9, 11, 17, 0.78);
+  backdrop-filter: blur(24px);
+  -webkit-backdrop-filter: blur(24px);
+  border: 1px solid rgba(255, 255, 255, 0.09);
+  box-shadow: 0 18px 40px -10px rgba(0, 0, 0, 0.8), inset 0 1px 0 rgba(255, 255, 255, 0.07);
+}
+
+.glass-panel-glow-emerald {
+  border-color: rgba(16, 185, 129, 0.25);
+  box-shadow: 0 18px 40px -10px rgba(0, 0, 0, 0.8), 0 0 25px -5px rgba(16, 185, 129, 0.15), inset 0 1px 0 rgba(16, 185, 129, 0.2);
+}
+
+.glass-panel-glow-violet {
+  border-color: rgba(139, 92, 246, 0.25);
+  box-shadow: 0 18px 40px -10px rgba(0, 0, 0, 0.8), 0 0 25px -5px rgba(139, 92, 246, 0.15), inset 0 1px 0 rgba(139, 92, 246, 0.2);
+}
+
+.glass-panel-glow-cyan {
+  border-color: rgba(6, 182, 212, 0.25);
+  box-shadow: 0 18px 40px -10px rgba(0, 0, 0, 0.8), 0 0 25px -5px rgba(6, 182, 212, 0.15), inset 0 1px 0 rgba(6, 182, 212, 0.2);
+}
+
+.glass-btn-emerald {
+  background: linear-gradient(135deg, rgba(16, 185, 129, 0.16) 0%, rgba(5, 150, 105, 0.08) 100%);
+  border: 1px solid rgba(16, 185, 129, 0.35);
+  box-shadow: 0 4px 16px rgba(0, 0, 0, 0.4), inset 0 1px 0 rgba(255, 255, 255, 0.12);
+}
+.glass-btn-emerald:hover:not(:disabled) {
+  background: linear-gradient(135deg, rgba(16, 185, 129, 0.28) 0%, rgba(5, 150, 105, 0.16) 100%);
+  border-color: rgba(16, 185, 129, 0.6);
+  box-shadow: 0 0 20px rgba(16, 185, 129, 0.3), inset 0 1px 0 rgba(255, 255, 255, 0.2);
+}
+
+.glass-btn-amber {
+  background: linear-gradient(135deg, rgba(245, 158, 11, 0.16) 0%, rgba(217, 119, 6, 0.08) 100%);
+  border: 1px solid rgba(245, 158, 11, 0.35);
+  box-shadow: 0 4px 16px rgba(0, 0, 0, 0.4), inset 0 1px 0 rgba(255, 255, 255, 0.12);
+}
+.glass-btn-amber:hover:not(:disabled) {
+  background: linear-gradient(135deg, rgba(245, 158, 11, 0.28) 0%, rgba(217, 119, 6, 0.16) 100%);
+  border-color: rgba(245, 158, 11, 0.6);
+  box-shadow: 0 0 20px rgba(245, 158, 11, 0.3), inset 0 1px 0 rgba(255, 255, 255, 0.2);
+}
+
+.glass-btn-red {
+  background: linear-gradient(135deg, rgba(239, 68, 68, 0.16) 0%, rgba(185, 28, 28, 0.08) 100%);
+  border: 1px solid rgba(239, 68, 68, 0.35);
+  box-shadow: 0 4px 16px rgba(0, 0, 0, 0.4), inset 0 1px 0 rgba(255, 255, 255, 0.12);
+}
+.glass-btn-red:hover:not(:disabled) {
+  background: linear-gradient(135deg, rgba(239, 68, 68, 0.28) 0%, rgba(185, 28, 28, 0.16) 100%);
+  border-color: rgba(239, 68, 68, 0.6);
+  box-shadow: 0 0 20px rgba(239, 68, 68, 0.3), inset 0 1px 0 rgba(255, 255, 255, 0.2);
+}
+
+.glass-panel-low {
+  background: rgba(13, 15, 20, 0.95);
+  backdrop-filter: none;
+  -webkit-backdrop-filter: none;
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.5);
+}
+
+.glass-card {
+  background: rgba(16, 19, 26, 0.55);
+  backdrop-filter: blur(12px);
+  -webkit-backdrop-filter: blur(12px);
+  border: 1px solid rgba(255, 255, 255, 0.05);
+}
+
+.glass-card:hover {
+  border-color: rgba(255, 255, 255, 0.12);
+}
+
+/* Minecraft In-Game Font helper */
+.font-mono-terminal {
+  font-family: 'JetBrains Mono', monospace;
+}
+
+/* Subtle glow effects */
+.glow-emerald {
+  box-shadow: 0 0 25px -5px rgba(16, 185, 129, 0.25);
+}
+
+.glow-violet {
+  box-shadow: 0 0 25px -5px rgba(139, 92, 246, 0.25);
+}
+
+.glow-blue {
+  box-shadow: 0 0 25px -5px rgba(59, 130, 246, 0.25);
+}
+
+.glow-red {
+  box-shadow: 0 0 25px -5px rgba(239, 68, 68, 0.3);
+}
+
+/* Scanline overlay */
+.scanline {
+  background: linear-gradient(
+    to bottom,
+    rgba(255,255,255,0),
+    rgba(255,255,255,0) 50%,
+    rgba(0, 0, 0, 0.3) 50%,
+    rgba(0, 0, 0, 0.3)
+  );
+  background-size: 100% 4px;
+}
+
+/* Compact Mode Spacing adjustments */
+.compact-mode .glass-panel {
+  padding: 1rem !important;
+}
+
+.compact-mode .glass-card {
+  padding: 0.75rem !important;
+}
+
+.compact-mode h1 {
+  font-size: 1.25rem !important;
+}
+
+.compact-mode h2 {
+  font-size: 0.875rem !important;
+}
+
+/* Animation controls */
+.anim-off * {
+  animation: none !important;
+  transition: none !important;
+}
+
+.anim-reduced * {
+  animation-duration: 0.01ms !important;
+  animation-iteration-count: 1 !important;
+  transition-duration: 0.1s !important;
+}

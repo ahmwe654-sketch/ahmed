@@ -1,0 +1,6 @@
+{
+  "name": "Aegis Core — Fabric Server Control Center",
+  "description": "Next-generation gaming control deck for Minecraft Java and Fabric servers. Featuring real-time lifecycle controls, circular diagnostics, RCON terminal, player manager, inventory viewer, gamerules, mods compatibility scanner, backups, and scheduler.",
+  "requestFramePermissions": [],
+  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+}
