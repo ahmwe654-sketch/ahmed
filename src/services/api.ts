@@ -29,26 +29,40 @@ class ApiService {
       const response = await fetch(endpoint, {
         headers: {
           'Content-Type': 'application/json',
+          'Accept': 'application/json',
           ...(options?.headers || {})
         },
         ...options
       });
 
+      const contentType = response.headers.get('content-type') || '';
+
       if (!response.ok) {
         let errorMessage = `HTTP ${response.status} (${response.statusText})`;
-        try {
-          const errData = await response.json();
-          if (errData?.error) errorMessage = errData.error;
-          else if (errData?.message) errorMessage = errData.message;
-        } catch {
-          // Ignore JSON parse failure on error response
+        if (contentType.includes('application/json')) {
+          try {
+            const errData = await response.json();
+            if (errData?.error) errorMessage = errData.error;
+            else if (errData?.message) errorMessage = errData.message;
+          } catch {
+            // Ignore parse failure
+          }
         }
         throw new Error(errorMessage);
       }
 
-      return await response.json();
+      if (contentType.includes('application/json')) {
+        return await response.json();
+      } else {
+        // Response was not JSON (e.g., HTML from fallback or plain text)
+        const text = await response.text();
+        if (text.startsWith('{') || text.startsWith('[')) {
+          return JSON.parse(text);
+        }
+        throw new Error(`Server returned non-JSON response from ${endpoint}`);
+      }
     } catch (err: any) {
-      console.error(`[API Error] ${endpoint}:`, err);
+      console.warn(`[API Info] ${endpoint}: ${err?.message || err}`);
       throw err;
     }
   }
@@ -429,6 +443,34 @@ class ApiService {
 
   async saveServerSettings(settings: any): Promise<{ success: boolean; message: string }> {
     return this.saveSettings(settings);
+  }
+
+  // --- Codespaces & Server Connection ---
+  async getConnectionConfig(): Promise<{
+    host: string;
+    port: number;
+    rconPort: number;
+    rconConfigured: boolean;
+    rconConnected: boolean;
+    serverDir: string;
+    startCommand: string;
+    connectionError?: string;
+  }> {
+    return this.request('/api/connection');
+  }
+
+  async saveConnectionConfig(config: {
+    host?: string;
+    port?: number;
+    rconPort?: number;
+    rconPassword?: string;
+    serverDir?: string;
+    startCommand?: string;
+  }): Promise<{ success: boolean; message: string }> {
+    return this.request('/api/connection/save', {
+      method: 'POST',
+      body: JSON.stringify(config)
+    });
   }
 }
 

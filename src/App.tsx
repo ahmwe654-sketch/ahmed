@@ -750,7 +750,7 @@ export function App() {
           onLogin={() => setAuthView('login')}
           onToggleLang={handleToggleLang}
         />
-        <ToastContainer toasts={toasts} onCloseToast={removeToast} />
+        <ToastContainer toasts={toasts} onDismiss={removeToast} onCloseToast={removeToast} />
       </>
     );
   }
@@ -767,7 +767,7 @@ export function App() {
           }}
           onSwitchToLogin={() => setAuthView('login')}
         />
-        <ToastContainer toasts={toasts} onCloseToast={removeToast} />
+        <ToastContainer toasts={toasts} onDismiss={removeToast} onCloseToast={removeToast} />
       </>
     );
   }
@@ -785,7 +785,7 @@ export function App() {
           onSwitchToOnboarding={() => setAuthView('onboarding')}
           onClose={() => setAuthView('welcome')}
         />
-        <ToastContainer toasts={toasts} onCloseToast={removeToast} />
+        <ToastContainer toasts={toasts} onDismiss={removeToast} onCloseToast={removeToast} />
       </>
     );
   }
@@ -795,7 +795,7 @@ export function App() {
   return (
     <div className={`min-h-screen bg-[#07080b] text-slate-100 flex flex-col antialiased select-none bg-ambient-deck ${rtl ? 'rtl' : 'ltr'}`}>
       {/* Toast Overlay */}
-      <ToastContainer toasts={toasts} onCloseToast={removeToast} />
+      <ToastContainer toasts={toasts} onDismiss={removeToast} onCloseToast={removeToast} />
 
       {/* Confirmation Modal */}
       {confirmConfig && (

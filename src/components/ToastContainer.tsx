@@ -4,11 +4,20 @@ import { ToastNotification } from '../types';
 
 interface ToastContainerProps {
   toasts: ToastNotification[];
-  onDismiss: (id: string) => void;
+  onDismiss?: (id: string) => void;
+  onCloseToast?: (id: string) => void;
 }
 
-export const ToastContainer: React.FC<ToastContainerProps> = ({ toasts, onDismiss }) => {
+export const ToastContainer: React.FC<ToastContainerProps> = ({ toasts, onDismiss, onCloseToast }) => {
   if (toasts.length === 0) return null;
+
+  const handleDismiss = (id: string) => {
+    if (typeof onDismiss === 'function') {
+      onDismiss(id);
+    } else if (typeof onCloseToast === 'function') {
+      onCloseToast(id);
+    }
+  };
 
   return (
     <aside 
@@ -55,7 +64,7 @@ export const ToastContainer: React.FC<ToastContainerProps> = ({ toasts, onDismis
             <button
               id={`dismiss-toast-${toast.id}`}
               type="button"
-              onClick={() => onDismiss(toast.id)}
+              onClick={() => handleDismiss(toast.id)}
               className="shrink-0 p-1 rounded-lg text-slate-400 hover:text-white hover:bg-white/10 transition-colors cursor-pointer"
             >
               <X className="w-4 h-4" />

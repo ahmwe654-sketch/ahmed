@@ -1,0 +1,49 @@
+# ==============================================================================
+# Minecraft Java Server Properties (Optimized for GitHub Codespaces & Aegis Core)
+# ==============================================================================
+
+# Network & Game Ports
+server-port=25565
+server-ip=0.0.0.0
+motd=§a⚔ §lMinecraft Java Server §7[Codespaces] §8| §eAegis Core
+max-players=20
+online-mode=true
+prevent-proxy-connections=false
+network-compression-threshold=256
+
+# Gameplay & Difficulty
+gamemode=survival
+difficulty=normal
+pvp=true
+hardcore=false
+allow-flight=false
+spawn-protection=16
+spawn-animals=true
+spawn-monsters=true
+spawn-npcs=true
+white-list=false
+enforce-whitelist=false
+
+# World & Rendering
+level-name=world
+level-seed=
+level-type=minecraft\:normal
+generate-structures=true
+view-distance=10
+simulation-distance=8
+max-world-size=29999984
+
+# ==============================================================================
+# RCON CONFIGURATION (MANDATORY FOR AEGIS DASHBOARD INTEGRATION)
+# ==============================================================================
+enable-rcon=true
+rcon.port=25575
+rcon.password=YourSecretPasswordHere
+broadcast-rcon-to-ops=true
+
+# Performance & Security
+enable-command-block=true
+max-tick-time=60000
+sync-chunk-writes=true
+enforce-secure-profile=true
+hide-online-players=false

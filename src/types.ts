@@ -58,6 +58,7 @@ export interface ServerStatusData {
   fabricVersion?: string;
   ip: string;
   port: number;
+  rconPort?: number;
   motd: string;
   tps: number;
   mspt?: number;
@@ -65,10 +66,23 @@ export interface ServerStatusData {
   playersOnline: number;
   maxPlayers: number;
   rconConnected?: boolean;
+  rconConfigured?: boolean;
   maintenanceMode?: boolean;
   isCrashDetected?: boolean;
   crashTimestamp?: string | null;
   crashReason?: string | null;
+  connectionError?: string;
+}
+
+export interface ConnectionConfig {
+  host: string;
+  port: number;
+  rconPort: number;
+  rconConfigured: boolean;
+  rconConnected: boolean;
+  serverDir: string;
+  startCommand: string;
+  connectionError?: string;
 }
 
 export interface ServerMetricsData {

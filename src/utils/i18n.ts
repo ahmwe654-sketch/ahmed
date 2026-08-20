@@ -202,6 +202,7 @@ export const translations: Record<Language, Translations> = {
     
     // Settings Categories
     cat_all: 'All Settings',
+    cat_codespaces: 'Codespaces & Connection',
     cat_localization: 'Language & Locale',
     cat_general: 'General',
     cat_gameplay: 'Gameplay',
@@ -438,6 +439,7 @@ export const translations: Record<Language, Translations> = {
 
     // Settings Categories
     cat_all: 'كافة الإعدادات',
+    cat_codespaces: 'اتصال Codespaces و RCON',
     cat_localization: 'اللغة والتعريب',
     cat_general: 'عام والواجهة',
     cat_gameplay: 'أسلوب اللعب',
