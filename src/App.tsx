@@ -1,6 +1,7 @@
 import React, { useState, useEffect, useCallback } from 'react';
 import { api } from './services/api';
-import {
+import VerificationModal from './components/VerificationModal';
+import type {
   ServerStatusData,
   ServerMetricsData,
   ServerInfoData,
@@ -33,7 +34,7 @@ import { WelcomeScreen } from './components/WelcomeScreen';
 import { OnboardingModal } from './components/OnboardingModal';
 import { LoginModal } from './components/LoginModal';
 import { ConnectServerScreen } from './components/ConnectServerScreen';
-import { AccountSettingsModal } from './components/AccountSettingsModal';
+import VerificationModal from './components/VerificationModal';
 import { TopBar } from './components/TopBar';
 import { Sidebar } from './components/Sidebar';
 import { ToastContainer } from './components/ToastContainer';
@@ -62,6 +63,7 @@ import { isRTL } from './utils/i18n';
 export function App() {
   // Navigation & Session State
   const [authView, setAuthView] = useState<'welcome' | 'onboarding' | 'login' | 'connect-server' | 'authenticated'>('welcome');
+  const [isAuthModalOpen, setIsAuthModalOpen] = useState(false);
   const [activeTab, setActiveTab] = useState<NavigationTab>('dashboard');
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
 
@@ -1112,6 +1114,7 @@ export function App() {
           )}
         </main>
       </div>
+      {isAuthModalOpen && <VerificationModal onClose={() => setIsAuthModalOpen(false)} />}
     </div>
   );
 }
