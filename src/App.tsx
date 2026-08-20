@@ -63,7 +63,7 @@ import { isRTL } from './utils/i18n';
 export function App() {
   // Navigation & Session State
   const [authView, setAuthView] = useState<'welcome' | 'onboarding' | 'login' | 'connect-server' | 'authenticated'>('welcome');
-  const [isAuthModalOpen, setIsAuthModalOpen] = useState(false);
+  const [isAuthModalOpen, setIsAuthModalOpen] = useState(true);
   const [activeTab, setActiveTab] = useState<NavigationTab>('dashboard');
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
 
