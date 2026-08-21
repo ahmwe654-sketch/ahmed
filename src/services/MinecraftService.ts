@@ -117,6 +117,55 @@ export interface IMinecraftService {
   removeWhitelist(username: string): Promise<{ success: boolean; message: string }>;
   getBans(): Promise<{ bans: BanEntry[] }>;
 
+  // Authentication & Cloud Profile
+  register(data: {
+    name: string;
+    username: string;
+    email: string;
+    password?: string;
+    language?: string;
+    appearance?: any;
+    notifications?: any;
+    serverName?: string;
+    serverType?: string;
+    mcVersion?: string;
+    rememberMe?: boolean;
+  }): Promise<{ success: boolean; requireVerification?: boolean; email?: string; maskedEmail?: string; cooldownSeconds?: number; expiresInSeconds?: number; devCode?: string; isDevFallback?: boolean; user?: any; token?: string; message?: string }>;
+  login(data: { identifier: string; password?: string; rememberMe?: boolean }): Promise<{ success: boolean; requireVerification?: boolean; email?: string; maskedEmail?: string; cooldownSeconds?: number; expiresInSeconds?: number; devCode?: string; isDevFallback?: boolean; user?: any; token?: string; message?: string }>;
+  sendVerificationCode(data: { email: string; type?: string; newEmail?: string }): Promise<{ success: boolean; cooldownSeconds?: number; expiresInSeconds?: number; maskedEmail?: string; devCode?: string; isDevFallback?: boolean; message?: string }>;
+  verifyCode(data: { email: string; code: string; type?: string; rememberMe?: boolean }): Promise<{ success: boolean; user?: any; token?: string; remainingAttempts?: number; message?: string }>;
+  forgotPassword(email: string): Promise<{ success: boolean; cooldownSeconds?: number; expiresInSeconds?: number; maskedEmail?: string; devCode?: string; isDevFallback?: boolean; message?: string }>;
+  resetPasswordWithCode(data: { email: string; code: string; newPassword: string }): Promise<{ success: boolean; message: string }>;
+  resetPassword(data: { email: string; code: string; newPassword: string }): Promise<{ success: boolean; message: string }>;
+  requestEmailChange(newEmail: string): Promise<{ success: boolean; cooldownSeconds?: number; expiresInSeconds?: number; maskedEmail?: string; devCode?: string; isDevFallback?: boolean; message?: string }>;
+  verifyEmailChange(code: string): Promise<{ success: boolean; user?: any; message: string }>;
+  logout(): Promise<{ success: boolean }>;
+  getSession(): Promise<{ success: boolean; authenticated?: boolean; user: any }>;
+  getActiveSessions(): Promise<{ sessions: any[] }>;
+  getSessions(): Promise<{ sessions: any[] }>;
+  revokeSession(sessionId: string): Promise<{ success: boolean }>;
+  revokeOtherSessions(): Promise<{ success: boolean; count: number }>;
+  revokeAllOtherSessions(): Promise<{ success: boolean; count?: number }>;
+  updateUserProfile(data: any): Promise<{ success: boolean; user: any }>;
+  updateProfile(data: any): Promise<{ success: boolean; user: any }>;
+  updateAppearance(data: any): Promise<{ success: boolean; appearance?: any; user?: any }>;
+  updateNotifications(data: any): Promise<{ success: boolean; notifications?: any; user?: any }>;
+  changePassword(data: { currentPassword?: string; newPassword: string }): Promise<{ success: boolean; message: string }>;
+  deleteAccount(data?: { confirmation: string }): Promise<{ success: boolean }>;
+  exportAccountData(): Promise<any>;
+
+  // Multi-Server & Members
+  getServers(): Promise<{ servers: any[]; activeServerId: string }>;
+  createServer(data: { name: string; type?: string; serverType?: string; mcVersion?: string; host?: string; port?: number; rconPort?: number; rconPassword?: string; serverDir?: string; startCommand?: string }): Promise<{ success: boolean; server: any }>;
+  selectActiveServer(serverId: string): Promise<{ success: boolean; activeServerId: string; server?: any }>;
+  updateServer(serverId: string, data: any): Promise<{ success: boolean; server: any }>;
+  deleteServer(serverId: string): Promise<{ success: boolean }>;
+  getServerMembers(serverId: string): Promise<{ members: any[] }>;
+  inviteServerMember(serverId: string, data: { usernameOrEmail: string; role: string }): Promise<{ success: boolean; member: any }>;
+  addServerMember(serverId: string, data: { username: string; role: string }): Promise<{ success: boolean; member: any }>;
+  updateServerMemberRole(serverId: string, userId: string, role: string): Promise<{ success: boolean }>;
+  removeServerMember(serverId: string, userId: string): Promise<{ success: boolean }>;
+
   // Waypoints & Files
   getWaypoints(): Promise<{ waypoints: CustomWaypoint[] }>;
   createWaypoint(data: { name: string; world: string; x: number; y: number; z: number; createdBy?: string }): Promise<{ success: boolean; waypoint: CustomWaypoint }>;

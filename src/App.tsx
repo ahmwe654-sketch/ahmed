@@ -139,8 +139,38 @@ export function App() {
   // Modals
   const [isAccountSettingsOpen, setIsAccountSettingsOpen] = useState(false);
   const [accountSettingsInitialTab, setAccountSettingsInitialTab] = useState<
-    'profile' | 'appearance' | 'notifications' | 'security'
+    'profile' | 'appearance' | 'notifications' | 'security' | 'servers'
   >('profile');
+  const [sessionChecking, setSessionChecking] = useState(true);
+
+  // Check active cloud session on application mount
+  useEffect(() => {
+    let isMounted = true;
+    const checkSession = async () => {
+      try {
+        const res = await api.getSession();
+        if (!isMounted) return;
+        if (res?.authenticated && res.user) {
+          setUserProfile(res.user);
+          if (res.user.language) setLang(res.user.language);
+          if (res.user.appearance) setAppearance((prev) => ({ ...prev, ...res.user.appearance }));
+          if (res.user.notifications) setNotifications((prev) => ({ ...prev, ...res.user.notifications }));
+          setAuthView('authenticated');
+          addToast('success', `Welcome back, ${res.user.name || 'Ahmed'} 👋`, 'Cloud Profile Loaded');
+        } else {
+          setAuthView('welcome');
+        }
+      } catch {
+        if (isMounted) setAuthView('welcome');
+      } finally {
+        if (isMounted) setSessionChecking(false);
+      }
+    };
+    checkSession();
+    return () => {
+      isMounted = false;
+    };
+  }, []);
 
   // Server Live State
   const [serverStatus, setServerStatus] = useState<ServerStatusData | null>(null);
@@ -726,23 +756,49 @@ export function App() {
     }
   };
 
-  const handleToggleLang = () => {
-    setLang((prev) => (prev === 'en' ? 'ar' : 'en'));
+  const handleToggleLang = async () => {
+    const nextLang: Language = lang === 'en' ? 'ar' : 'en';
+    setLang(nextLang);
+    try {
+      if (authView === 'authenticated') {
+        await api.updateProfile({ language: nextLang });
+      }
+    } catch {
+      // ignore
+    }
   };
 
   const handleOpenAccountSettings = (
-    tab: 'profile' | 'appearance' | 'notifications' | 'security' = 'profile'
+    tab: 'profile' | 'appearance' | 'notifications' | 'security' | 'servers' = 'profile'
   ) => {
     setAccountSettingsInitialTab(tab);
     setIsAccountSettingsOpen(true);
   };
 
-  const handleLogout = () => {
+  const handleLogout = async () => {
+    try {
+      await api.logout();
+    } catch {
+      // ignore
+    }
     setAuthView('welcome');
     addToast('info', 'Signed out from Aegis Core');
   };
 
   // --- Auth & Welcome Gate ---
+  if (sessionChecking) {
+    return (
+      <div className="min-h-screen bg-[#07080b] flex items-center justify-center text-slate-400">
+        <div className="flex flex-col items-center gap-3 animate-pulse">
+          <div className="w-10 h-10 rounded-2xl bg-emerald-500/20 border border-emerald-500/30 flex items-center justify-center text-emerald-400">
+            <span className="w-4 h-4 rounded-full bg-emerald-400 animate-ping" />
+          </div>
+          <span className="text-xs font-mono tracking-wider uppercase text-slate-300">Restoring Cloud Session...</span>
+        </div>
+      </div>
+    );
+  }
+
   if (authView === 'welcome') {
     return (
       <>
@@ -765,8 +821,13 @@ export function App() {
           lang={lang}
           onComplete={(newProfile) => {
             setUserProfile((prev) => ({ ...prev, ...newProfile }));
-            setAuthView('connect-server');
-            addToast('success', `Welcome aboard, ${newProfile.name || 'Admin'}!`, 'Setup Completed');
+            if (newProfile.language) setLang(newProfile.language);
+            if (newProfile.appearance) setAppearance((prev) => ({ ...prev, ...newProfile.appearance }));
+            if (newProfile.notifications) setNotifications((prev) => ({ ...prev, ...newProfile.notifications }));
+            setAuthView('authenticated');
+            addToast('success', `Welcome aboard, ${newProfile.name || 'Admin'}! 👋`, 'Account Created in Cloud');
+            fetchFullState();
+            fetchCriticalData();
           }}
           onSwitchToLogin={() => setAuthView('login')}
         />
@@ -782,8 +843,13 @@ export function App() {
           lang={lang}
           onSuccess={(profile) => {
             setUserProfile((prev) => ({ ...prev, ...profile }));
-            setAuthView('connect-server');
-            addToast('success', `Signed in as ${profile.name || 'Ahmed'} (${userProfile.role.toUpperCase()})`);
+            if (profile.language) setLang(profile.language);
+            if (profile.appearance) setAppearance((prev) => ({ ...prev, ...profile.appearance }));
+            if (profile.notifications) setNotifications((prev) => ({ ...prev, ...profile.notifications }));
+            setAuthView('authenticated');
+            addToast('success', `Welcome back, ${profile.name || 'Ahmed'} 👋`, `Cloud Profile Loaded (${(profile.role || 'owner').toUpperCase()})`);
+            fetchFullState();
+            fetchCriticalData();
           }}
           onSwitchToOnboarding={() => setAuthView('onboarding')}
           onClose={() => setAuthView('welcome')}
@@ -846,10 +912,35 @@ export function App() {
         lang={lang}
         onClose={() => setIsAccountSettingsOpen(false)}
         onUpdateProfile={(p) => setUserProfile((prev) => ({ ...prev, ...p }))}
-        onUpdateAppearance={(a) => setAppearance((prev) => ({ ...prev, ...a }))}
-        onUpdateNotifications={(n) => setNotifications((prev) => ({ ...prev, ...n }))}
+        onUpdateAppearance={async (a) => {
+          setAppearance((prev) => ({ ...prev, ...a }));
+          try {
+            await api.updateAppearance(a);
+          } catch {
+            // ignore
+          }
+        }}
+        onUpdateNotifications={async (n) => {
+          setNotifications((prev) => ({ ...prev, ...n }));
+          try {
+            await api.updateNotifications(n);
+          } catch {
+            // ignore
+          }
+        }}
         onToggleLang={handleToggleLang}
         onLogout={handleLogout}
+        onServerSwitched={(srv) => {
+          setUserProfile((prev) => ({
+            ...prev,
+            serverName: srv.name,
+            serverType: srv.serverType,
+            mcVersion: srv.mcVersion
+          }));
+          addToast('success', `Switched active realm to "${srv.name}"`, 'Server Switched');
+          fetchFullState();
+          fetchCriticalData();
+        }}
       />
 
       {/* Fixed Sidebar */}

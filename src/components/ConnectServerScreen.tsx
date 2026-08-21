@@ -400,11 +400,11 @@ export const ConnectServerScreen: React.FC<ConnectServerScreenProps> = ({
 
             {/* Quick config hint */}
             <div className="p-3.5 rounded-2xl bg-white/5 border border-white/8 text-xs text-slate-300 flex items-start gap-3">
-              <Info className="w-4 h-4 text-emerald-400 shrink-0 mt-0.5" />
+              <Info className="w-4 h-4 text-violet-400 shrink-0 mt-0.5" />
               <div>
                 <span className="font-bold text-white">server.properties check:</span> Ensure{' '}
-                <code className="text-emerald-300 bg-black/40 px-1 py-0.5 rounded">enable-rcon=true</code> and{' '}
-                <code className="text-emerald-300 bg-black/40 px-1 py-0.5 rounded">rcon.port=25575</code> are set in your server configuration.
+                <code className="text-violet-300 bg-black/40 px-1 py-0.5 rounded">enable-rcon=true</code> and{' '}
+                <code className="text-violet-300 bg-black/40 px-1 py-0.5 rounded">rcon.port=25575</code> are set in your server configuration.
               </div>
             </div>
           </div>
@@ -417,7 +417,7 @@ export const ConnectServerScreen: React.FC<ConnectServerScreenProps> = ({
               <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
                 <div>
                   <span className="text-xs font-bold uppercase text-slate-400 font-mono">Your Server Pairing Token</span>
-                  <div className="text-2xl sm:text-3xl font-black font-mono text-emerald-400 tracking-wider mt-1">
+                  <div className="text-2xl sm:text-3xl font-black font-mono text-violet-400 tracking-wider mt-1">
                     {pairingCode || 'GENERATING...'}
                   </div>
                 </div>
@@ -436,7 +436,7 @@ export const ConnectServerScreen: React.FC<ConnectServerScreenProps> = ({
               {pairingCommand && (
                 <div className="space-y-1.5 pt-2 border-t border-white/10">
                   <span className="text-[11px] text-slate-400 font-mono">Run this in your server console:</span>
-                  <div className="flex items-center justify-between p-2.5 rounded-xl bg-black/80 border border-white/10 font-mono text-xs text-emerald-300">
+                  <div className="flex items-center justify-between p-2.5 rounded-xl bg-black/80 border border-white/10 font-mono text-xs text-violet-300">
                     <span className="truncate">{pairingCommand}</span>
                     <button
                       type="button"
@@ -448,7 +448,7 @@ export const ConnectServerScreen: React.FC<ConnectServerScreenProps> = ({
                       }}
                       className="text-slate-400 hover:text-white p-1 rounded hover:bg-white/10 cursor-pointer shrink-0 ml-2"
                     >
-                      {copiedCmd ? <Check className="w-3.5 h-3.5 text-emerald-400" /> : <Copy className="w-3.5 h-3.5" />}
+                      {copiedCmd ? <Check className="w-3.5 h-3.5 text-violet-400" /> : <Copy className="w-3.5 h-3.5" />}
                     </button>
                   </div>
                 </div>
@@ -466,13 +466,13 @@ export const ConnectServerScreen: React.FC<ConnectServerScreenProps> = ({
                   value={manualCodeInput}
                   onChange={(e) => setManualCodeInput(e.target.value.toUpperCase())}
                   placeholder="AEGIS-XXXX-YYYY"
-                  className="flex-1 px-4 py-2.5 bg-black/50 border border-white/10 focus:border-emerald-500 rounded-xl text-white placeholder-slate-500 text-sm font-mono uppercase tracking-widest outline-none"
+                  className="flex-1 px-4 py-2.5 bg-black/50 border border-white/10 focus:border-violet-500 rounded-xl text-white placeholder-slate-500 text-sm font-mono uppercase tracking-widest outline-none"
                 />
                 <button
                   type="button"
                   onClick={handleVerifyPairingCode}
                   disabled={isVerifyingCode || (!manualCodeInput.trim() && !pairingCode)}
-                  className="px-5 py-2.5 rounded-xl bg-emerald-500 hover:bg-emerald-400 text-black font-black text-xs transition-all shadow-[0_0_20px_rgba(16,185,129,0.3)] disabled:opacity-50 cursor-pointer shrink-0 flex items-center gap-1.5"
+                  className="px-5 py-2.5 rounded-xl bg-gradient-to-r from-violet-600 to-indigo-600 hover:from-violet-500 hover:to-indigo-500 text-white font-bold text-xs transition-all shadow-[0_0_20px_rgba(139,92,246,0.3)] disabled:opacity-50 cursor-pointer shrink-0 flex items-center gap-1.5"
                 >
                   {isVerifyingCode ? <RefreshCw className="w-4 h-4 animate-spin" /> : <CheckCircle2 className="w-4 h-4" />}
                   <span>{isAr ? 'تحقق وربط' : 'Verify & Link'}</span>
@@ -485,9 +485,9 @@ export const ConnectServerScreen: React.FC<ConnectServerScreenProps> = ({
         {/* Tab 3: Codespaces Local Daemon */}
         {activeMode === 'codespaces' && (
           <div className="space-y-5 animate-in fade-in duration-200">
-            <div className="p-4 rounded-2xl bg-emerald-500/10 border border-emerald-500/20 text-xs text-emerald-300 space-y-2">
+            <div className="p-4 rounded-2xl bg-violet-500/10 border border-violet-500/20 text-xs text-violet-300 space-y-2">
               <div className="flex items-center gap-2 font-bold text-white">
-                <Sparkles className="w-4 h-4 text-emerald-400" />
+                <Sparkles className="w-4 h-4 text-violet-400" />
                 <span>Codespaces Container Integration</span>
               </div>
               <p className="text-slate-300">
@@ -524,13 +524,13 @@ export const ConnectServerScreen: React.FC<ConnectServerScreenProps> = ({
           <div
             className={`mt-6 p-4 rounded-2xl border text-xs animate-in fade-in ${
               testResult.success
-                ? 'bg-emerald-500/10 border-emerald-500/30 text-emerald-200'
+                ? 'bg-violet-500/10 border-violet-500/30 text-violet-200'
                 : 'bg-rose-500/10 border-rose-500/30 text-rose-200'
             }`}
           >
             <div className="flex items-center gap-2 font-bold mb-1">
               {testResult.success ? (
-                <CheckCircle2 className="w-4 h-4 text-emerald-400" />
+                <CheckCircle2 className="w-4 h-4 text-violet-400" />
               ) : (
                 <AlertTriangle className="w-4 h-4 text-rose-400" />
               )}
@@ -548,7 +548,7 @@ export const ConnectServerScreen: React.FC<ConnectServerScreenProps> = ({
                 {testResult.details.pingMs !== undefined && (
                   <div>
                     <span className="text-slate-500 block">Ping:</span>
-                    <span className="text-emerald-400 font-bold">{testResult.details.pingMs} ms</span>
+                    <span className="text-violet-400 font-bold">{testResult.details.pingMs} ms</span>
                   </div>
                 )}
                 {testResult.details.players && (
@@ -559,7 +559,7 @@ export const ConnectServerScreen: React.FC<ConnectServerScreenProps> = ({
                 )}
                 <div>
                   <span className="text-slate-500 block">RCON Auth:</span>
-                  <span className={testResult.details.rconSuccess ? 'text-emerald-400 font-bold' : 'text-amber-400'}>
+                  <span className={testResult.details.rconSuccess ? 'text-violet-400 font-bold' : 'text-amber-400'}>
                     {testResult.details.rconSuccess ? 'Connected' : testResult.details.rconError || 'Not configured'}
                   </span>
                 </div>
@@ -574,9 +574,9 @@ export const ConnectServerScreen: React.FC<ConnectServerScreenProps> = ({
             type="button"
             onClick={handleTestConnection}
             disabled={isTesting || isSaving}
-            className="w-full sm:w-auto px-5 py-3 rounded-2xl bg-white/5 hover:bg-white/10 border border-white/10 hover:border-emerald-500/40 text-slate-200 hover:text-white text-xs font-black transition-all flex items-center justify-center gap-2 cursor-pointer"
+            className="w-full sm:w-auto px-5 py-3 rounded-2xl bg-white/5 hover:bg-white/10 border border-white/10 hover:border-violet-500/40 text-slate-200 hover:text-white text-xs font-bold transition-all flex items-center justify-center gap-2 cursor-pointer"
           >
-            <RefreshCw className={`w-4 h-4 ${isTesting ? 'animate-spin text-emerald-400' : ''}`} />
+            <RefreshCw className={`w-4 h-4 ${isTesting ? 'animate-spin text-violet-400' : ''}`} />
             <span>{isTesting ? (isAr ? 'جارِ الاختبار...' : 'Probing...') : (isAr ? 'اختبار الاتصال المباشر' : 'Test Live Connection')}</span>
           </button>
 
@@ -598,7 +598,7 @@ export const ConnectServerScreen: React.FC<ConnectServerScreenProps> = ({
               type="button"
               onClick={handleSaveAndConnect}
               disabled={isSaving}
-              className="flex-1 sm:flex-initial px-6 py-3 rounded-2xl bg-emerald-500 hover:bg-emerald-400 text-black text-xs font-black transition-all shadow-[0_0_25px_rgba(16,185,129,0.35)] flex items-center justify-center gap-2 cursor-pointer"
+              className="flex-1 sm:flex-initial px-6 py-3 rounded-2xl bg-gradient-to-r from-violet-600 to-indigo-600 hover:from-violet-500 hover:to-indigo-500 text-white text-xs font-bold transition-all shadow-[0_0_25px_rgba(139,92,246,0.35)] flex items-center justify-center gap-2 cursor-pointer"
             >
               <span>{isSaving ? (isAr ? 'جارِ الحفظ...' : 'Connecting...') : (isAr ? 'حفظ ودخول لوحة التحكم' : 'Save & Open Dashboard')}</span>
               <ArrowRight className="w-4 h-4" />

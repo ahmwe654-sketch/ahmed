@@ -73,6 +73,14 @@ class SoundEffects {
     } catch {}
   }
 
+  playAlert() {
+    this.playWarning();
+  }
+
+  playError() {
+    this.playWarning();
+  }
+
   toggle() {
     this.enabled = !this.enabled;
     return this.enabled;

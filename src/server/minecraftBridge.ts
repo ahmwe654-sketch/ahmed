@@ -598,44 +598,6 @@ export class MinecraftBridge {
     return { success: true, message: `Server paired successfully with code ${clean}.` };
   }
 
-  public updateConnectionConfig(config: {
-    host?: string;
-    port?: number;
-    rconPort?: number;
-    rconPassword?: string;
-    serverDir?: string;
-    startCommand?: string;
-  }) {
-    if (config.host !== undefined) {
-      this.host = config.host;
-      this.state.ip = config.host;
-    }
-    if (config.port !== undefined) {
-      this.port = config.port;
-      this.state.port = config.port;
-    }
-    if (config.rconPort !== undefined) {
-      this.rconPort = config.rconPort;
-      this.state.rconPort = config.rconPort;
-    }
-    if (config.rconPassword !== undefined) {
-      this.rconPassword = config.rconPassword;
-      this.state.rconConfigured = Boolean(config.rconPassword);
-      this.rconClient.updateConfig({
-        host: this.host,
-        port: this.rconPort,
-        password: config.rconPassword
-      });
-    }
-    if (config.serverDir !== undefined) {
-      this.serverDir = config.serverDir;
-    }
-    if (config.startCommand !== undefined) {
-      this.startCommand = config.startCommand;
-      this.processManager.setStartCommand(config.startCommand);
-    }
-  }
-
   public async testConnection(config: {
     host: string;
     port: number;

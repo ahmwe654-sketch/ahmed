@@ -8,7 +8,9 @@ import {
   LogOut,
   ChevronDown,
   Sparkles,
-  Sliders
+  Sliders,
+  Server,
+  Key
 } from 'lucide-react';
 import { Language, UserProfile, AppearanceConfig, NotificationConfig } from '../types';
 import { getTranslation } from '../utils/i18n';
@@ -19,7 +21,7 @@ interface AccountMenuProps {
   appearance: AppearanceConfig;
   notifications: NotificationConfig;
   lang: Language;
-  onOpenSettings: (tab?: 'profile' | 'appearance' | 'notifications' | 'security') => void;
+  onOpenSettings: (tab?: 'profile' | 'appearance' | 'notifications' | 'security' | 'servers') => void;
   onToggleLang: () => void;
   onLogout: () => void;
 }
@@ -133,7 +135,33 @@ export const AccountMenu: React.FC<AccountMenuProps> = ({
               className="w-full px-4 py-2 text-xs text-left hover:bg-white/5 flex items-center gap-2.5 text-slate-300 hover:text-white transition-colors cursor-pointer"
             >
               <User className="w-4 h-4 text-emerald-400" />
-              <span>{getTranslation(lang, 'account_settings')}</span>
+              <span>Cloud Profile</span>
+            </button>
+
+            <button
+              type="button"
+              onClick={() => {
+                sound.playClick();
+                setIsOpen(false);
+                onOpenSettings('servers');
+              }}
+              className="w-full px-4 py-2 text-xs text-left hover:bg-white/5 flex items-center gap-2.5 text-slate-300 hover:text-white transition-colors cursor-pointer"
+            >
+              <Server className="w-4 h-4 text-sky-400" />
+              <span>Servers & Realms</span>
+            </button>
+
+            <button
+              type="button"
+              onClick={() => {
+                sound.playClick();
+                setIsOpen(false);
+                onOpenSettings('security');
+              }}
+              className="w-full px-4 py-2 text-xs text-left hover:bg-white/5 flex items-center gap-2.5 text-slate-300 hover:text-white transition-colors cursor-pointer"
+            >
+              <Key className="w-4 h-4 text-amber-400" />
+              <span>Active Sessions & Security</span>
             </button>
 
             <button
@@ -160,19 +188,6 @@ export const AccountMenu: React.FC<AccountMenuProps> = ({
             >
               <Bell className="w-4 h-4 text-blue-400" />
               <span>{getTranslation(lang, 'notification_settings')}</span>
-            </button>
-
-            <button
-              type="button"
-              onClick={() => {
-                sound.playClick();
-                setIsOpen(false);
-                onOpenSettings('security');
-              }}
-              className="w-full px-4 py-2 text-xs text-left hover:bg-white/5 flex items-center gap-2.5 text-slate-300 hover:text-white transition-colors cursor-pointer"
-            >
-              <Shield className="w-4 h-4 text-amber-400" />
-              <span>{getTranslation(lang, 'active_role')}</span>
             </button>
           </div>
 

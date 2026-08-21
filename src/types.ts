@@ -16,15 +16,97 @@ export type UserRole = 'owner' | 'admin' | 'moderator' | 'viewer';
 
 export type Language = 'en' | 'ar';
 
-export interface UserProfile {
+export interface ServerEntity {
+  id: string;
   name: string;
+  type: 'Fabric' | 'Vanilla' | 'Forge' | 'Paper' | 'Other';
+  mcVersion: string;
+  host: string;
+  port: number;
+  rconPort: number;
+  serverDir: string;
+  startCommand: string;
+  ownerId: string;
+  userRole: UserRole;
+  createdAt: string;
+  updatedAt: string;
+}
+
+export interface ServerMemberItem {
+  id: string;
+  serverId: string;
+  userId: string;
+  role: UserRole;
+  permissions: string[];
+  joinedAt: string;
+  invitedBy?: string;
+  user: {
+    id: string;
+    name: string;
+    username: string;
+    email: string;
+    avatar?: string;
+  };
+}
+
+export interface AuthSession {
+  id: string;
+  userId: string;
+  createdAt: string;
+  lastActive: string;
+  expiresAt: string;
+  deviceInfo: {
+    userAgent: string;
+    ip: string;
+    browser: string;
+    os: string;
+    deviceName: string;
+  };
+  isCurrent?: boolean;
+}
+
+export interface UserProfile {
+  id?: string;
+  name: string;
+  username?: string;
   email: string;
   role: UserRole;
   avatar?: string;
-  serverName: string;
-  serverType: string;
-  mcVersion: string;
+  serverName?: string;
+  serverType?: string;
+  mcVersion?: string;
+  language?: Language;
+  appearance?: AppearanceConfig;
+  notifications?: NotificationConfig;
+  onboardingCompleted?: boolean;
+  activeServerId?: string;
+  emailVerified?: boolean;
+  servers?: ServerEntity[];
+  createdAt?: string;
+  lastLogin?: string;
+  lastActive?: string;
   rememberMe?: boolean;
+}
+
+export interface VerificationSendResult {
+  success: boolean;
+  message?: string;
+  cooldownSeconds?: number;
+  expiresInSeconds?: number;
+  maskedEmail?: string;
+  devCode?: string;
+  isDevFallback?: boolean;
+  error?: string;
+}
+
+export interface VerificationVerifyResult {
+  success: boolean;
+  message?: string;
+  user?: UserProfile;
+  token?: string;
+  requireVerification?: boolean;
+  remainingAttempts?: number;
+  error?: string;
 }
 
 export interface AppearanceConfig {

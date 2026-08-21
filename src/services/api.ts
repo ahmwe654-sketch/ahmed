@@ -31,14 +31,39 @@ import {
 } from './MinecraftService';
 
 export class RealMinecraftService implements IMinecraftService {
+  private sessionToken: string | null = typeof window !== 'undefined' ? localStorage.getItem('aegis_session_token') : null;
+
+  public setSessionToken(token: string | null) {
+    this.sessionToken = token;
+    if (typeof window !== 'undefined') {
+      if (token) localStorage.setItem('aegis_session_token', token);
+      else localStorage.removeItem('aegis_session_token');
+    }
+  }
+
+  public getSessionToken(): string | null {
+    if (!this.sessionToken && typeof window !== 'undefined') {
+      this.sessionToken = localStorage.getItem('aegis_session_token');
+    }
+    return this.sessionToken;
+  }
+
   private async request<T>(endpoint: string, options?: RequestInit): Promise<T> {
     try {
+      const headers: Record<string, string> = {
+        'Content-Type': 'application/json',
+        'Accept': 'application/json',
+        ...(options?.headers as Record<string, string> || {})
+      };
+
+      const token = this.getSessionToken();
+      if (token && !headers['Authorization']) {
+        headers['Authorization'] = `Bearer ${token}`;
+      }
+
       const response = await fetch(endpoint, {
-        headers: {
-          'Content-Type': 'application/json',
-          'Accept': 'application/json',
-          ...(options?.headers || {})
-        },
+        credentials: 'include',
+        headers,
         ...options
       });
 
@@ -71,6 +96,233 @@ export class RealMinecraftService implements IMinecraftService {
       console.warn(`[API Info] ${endpoint}: ${err?.message || err}`);
       throw err;
     }
+  }
+
+  // --- Authentication & Cloud Profile ---
+  async register(data: {
+    name: string;
+    username: string;
+    email: string;
+    password?: string;
+    language?: string;
+    appearance?: any;
+    notifications?: any;
+    serverName?: string;
+    serverType?: string;
+    mcVersion?: string;
+    rememberMe?: boolean;
+  }): Promise<{ success: boolean; requireVerification?: boolean; email?: string; maskedEmail?: string; cooldownSeconds?: number; expiresInSeconds?: number; devCode?: string; isDevFallback?: boolean; user?: any; token?: string; message?: string }> {
+    const res = await this.request<{ success: boolean; requireVerification?: boolean; email?: string; maskedEmail?: string; cooldownSeconds?: number; expiresInSeconds?: number; devCode?: string; isDevFallback?: boolean; user?: any; token?: string; message?: string }>('/api/auth/register', {
+      method: 'POST',
+      body: JSON.stringify(data)
+    });
+    if (res.token) {
+      this.setSessionToken(res.token);
+    }
+    return res;
+  }
+
+  async login(data: { identifier: string; password?: string; rememberMe?: boolean }): Promise<{ success: boolean; requireVerification?: boolean; email?: string; maskedEmail?: string; cooldownSeconds?: number; expiresInSeconds?: number; devCode?: string; isDevFallback?: boolean; user?: any; token?: string; message?: string }> {
+    const res = await this.request<{ success: boolean; requireVerification?: boolean; email?: string; maskedEmail?: string; cooldownSeconds?: number; expiresInSeconds?: number; devCode?: string; isDevFallback?: boolean; user?: any; token?: string; message?: string }>('/api/auth/login', {
+      method: 'POST',
+      body: JSON.stringify(data)
+    });
+    if (res.token) {
+      this.setSessionToken(res.token);
+    }
+    return res;
+  }
+
+  async sendVerificationCode(data: { email: string; type?: string; newEmail?: string }): Promise<{ success: boolean; cooldownSeconds?: number; expiresInSeconds?: number; maskedEmail?: string; devCode?: string; isDevFallback?: boolean; message?: string }> {
+    return this.request('/api/auth/send-code', {
+      method: 'POST',
+      body: JSON.stringify(data)
+    });
+  }
+
+  async verifyCode(data: { email: string; code: string; type?: string; rememberMe?: boolean }): Promise<{ success: boolean; user?: any; token?: string; remainingAttempts?: number; message?: string }> {
+    const res = await this.request<{ success: boolean; user?: any; token?: string; remainingAttempts?: number; message?: string }>('/api/auth/verify-code', {
+      method: 'POST',
+      body: JSON.stringify(data)
+    });
+    if (res.token) {
+      this.setSessionToken(res.token);
+    }
+    return res;
+  }
+
+  async forgotPassword(email: string): Promise<{ success: boolean; cooldownSeconds?: number; expiresInSeconds?: number; maskedEmail?: string; devCode?: string; isDevFallback?: boolean; message?: string }> {
+    return this.request('/api/auth/forgot-password', {
+      method: 'POST',
+      body: JSON.stringify({ email })
+    });
+  }
+
+  async resetPasswordWithCode(data: { email: string; code: string; newPassword: string }): Promise<{ success: boolean; message: string }> {
+    return this.request('/api/auth/reset-password', {
+      method: 'POST',
+      body: JSON.stringify(data)
+    });
+  }
+
+  async resetPassword(data: { email: string; code: string; newPassword: string }): Promise<{ success: boolean; message: string }> {
+    return this.resetPasswordWithCode(data);
+  }
+
+  async requestEmailChange(newEmail: string): Promise<{ success: boolean; cooldownSeconds?: number; expiresInSeconds?: number; maskedEmail?: string; devCode?: string; isDevFallback?: boolean; message?: string }> {
+    return this.request('/api/auth/request-email-change', {
+      method: 'POST',
+      body: JSON.stringify({ newEmail })
+    });
+  }
+
+  async verifyEmailChange(code: string): Promise<{ success: boolean; user?: any; message: string }> {
+    return this.request('/api/auth/verify-email-change', {
+      method: 'POST',
+      body: JSON.stringify({ code })
+    });
+  }
+
+  async logout(): Promise<{ success: boolean }> {
+    try {
+      await this.request('/api/auth/logout', { method: 'POST' });
+    } catch {
+      // ignore
+    }
+    this.setSessionToken(null);
+    return { success: true };
+  }
+
+  async getSession(): Promise<{ success: boolean; authenticated?: boolean; user: any }> {
+    return this.request<{ success: boolean; authenticated?: boolean; user: any }>('/api/auth/me');
+  }
+
+  async getActiveSessions(): Promise<{ sessions: any[] }> {
+    return this.request<{ sessions: any[] }>('/api/auth/sessions');
+  }
+
+  async getSessions(): Promise<{ sessions: any[] }> {
+    return this.getActiveSessions();
+  }
+
+  async revokeSession(sessionId: string): Promise<{ success: boolean }> {
+    return this.request('/api/auth/sessions/revoke', {
+      method: 'POST',
+      body: JSON.stringify({ sessionId })
+    });
+  }
+
+  async revokeOtherSessions(): Promise<{ success: boolean; count: number }> {
+    return this.request('/api/auth/sessions/revoke-others', {
+      method: 'POST'
+    });
+  }
+
+  async revokeAllOtherSessions(): Promise<{ success: boolean; count?: number }> {
+    return this.revokeOtherSessions();
+  }
+
+  async updateUserProfile(data: any): Promise<{ success: boolean; user: any }> {
+    return this.request('/api/auth/profile', {
+      method: 'PATCH',
+      body: JSON.stringify(data)
+    });
+  }
+
+  async updateProfile(data: any): Promise<{ success: boolean; user: any }> {
+    return this.updateUserProfile(data);
+  }
+
+  async updateAppearance(data: any): Promise<{ success: boolean; appearance?: any; user?: any }> {
+    return this.updateUserProfile({ appearance: data });
+  }
+
+  async updateNotifications(data: any): Promise<{ success: boolean; notifications?: any; user?: any }> {
+    return this.updateUserProfile({ notifications: data });
+  }
+
+  async changePassword(data: { currentPassword?: string; newPassword: string }): Promise<{ success: boolean; message: string }> {
+    return this.request('/api/auth/password', {
+      method: 'POST',
+      body: JSON.stringify(data)
+    });
+  }
+
+  async deleteAccount(data?: { confirmation: string }): Promise<{ success: boolean }> {
+    const res = await this.request<{ success: boolean }>('/api/auth/delete-account', {
+      method: 'POST',
+      body: JSON.stringify(data || { confirmation: 'DELETE' })
+    });
+    this.setSessionToken(null);
+    return res;
+  }
+
+  async exportAccountData(): Promise<any> {
+    return this.request('/api/auth/export-data');
+  }
+
+  // --- Multi-Server & Members ---
+  async getServers(): Promise<{ servers: any[]; activeServerId: string }> {
+    return this.request('/api/servers');
+  }
+
+  async createServer(data: { name: string; type?: string; serverType?: string; mcVersion?: string; host?: string; port?: number; rconPort?: number; rconPassword?: string; serverDir?: string; startCommand?: string }): Promise<{ success: boolean; server: any }> {
+    const payload = {
+      ...data,
+      type: data.serverType || data.type || 'Fabric'
+    };
+    return this.request('/api/servers', {
+      method: 'POST',
+      body: JSON.stringify(payload)
+    });
+  }
+
+  async selectActiveServer(serverId: string): Promise<{ success: boolean; activeServerId: string; server?: any }> {
+    return this.request('/api/servers/select', {
+      method: 'POST',
+      body: JSON.stringify({ serverId })
+    });
+  }
+
+  async updateServer(serverId: string, data: any): Promise<{ success: boolean; server: any }> {
+    return this.request(`/api/servers/${encodeURIComponent(serverId)}`, {
+      method: 'PATCH',
+      body: JSON.stringify(data)
+    });
+  }
+
+  async deleteServer(serverId: string): Promise<{ success: boolean }> {
+    return this.request(`/api/servers/${encodeURIComponent(serverId)}`, {
+      method: 'DELETE'
+    });
+  }
+
+  async getServerMembers(serverId: string): Promise<{ members: any[] }> {
+    return this.request(`/api/servers/${encodeURIComponent(serverId)}/members`);
+  }
+
+  async inviteServerMember(serverId: string, data: { usernameOrEmail: string; role: string }): Promise<{ success: boolean; member: any }> {
+    return this.request(`/api/servers/${encodeURIComponent(serverId)}/members/invite`, {
+      method: 'POST',
+      body: JSON.stringify(data)
+    });
+  }
+
+  async addServerMember(serverId: string, data: { username: string; role: string }): Promise<{ success: boolean; member: any }> {
+    return this.inviteServerMember(serverId, { usernameOrEmail: data.username, role: data.role });
+  }
+
+  async updateServerMemberRole(serverId: string, userId: string, role: string): Promise<{ success: boolean }> {
+    return this.request(`/api/servers/${encodeURIComponent(serverId)}/members/${encodeURIComponent(userId)}`, {
+      method: 'PATCH',
+      body: JSON.stringify({ role })
+    });
+  }
+
+  async removeServerMember(serverId: string, userId: string): Promise<{ success: boolean }> {
+    return this.request(`/api/servers/${encodeURIComponent(serverId)}/members/${encodeURIComponent(userId)}`, {
+      method: 'DELETE'
+    });
   }
 
   // --- Connection & Pairing ---
@@ -843,6 +1095,245 @@ export class MockMinecraftService implements IMinecraftService {
 
   async saveServerSettings(): Promise<{ success: boolean; message: string }> {
     return { success: true, message: 'Settings saved' };
+  }
+
+  // Auth & Cloud Profile in Mock Mode
+  async register(data: any): Promise<{ success: boolean; user: any; token?: string; message?: string }> {
+    return {
+      success: true,
+      user: {
+        id: 'mock-user-1',
+        name: data.name || 'Ahmed',
+        username: data.username || 'Ahmed',
+        email: data.email || 'ahmed@aegis-smp.net',
+        role: 'owner',
+        language: data.language || 'en',
+        appearance: data.appearance || { theme: 'dark', accent: 'emerald', animations: 'full', glassEffect: 'high', compactMode: false },
+        notifications: data.notifications || { serverRestart: true, serverCrash: true, backupComplete: true, backupFailure: true, playerJoin: true, playerLeave: true, performanceWarning: true, scheduledBroadcast: true, modError: true },
+        serverConnected: true
+      },
+      token: 'mock-token'
+    };
+  }
+
+  async login(data: any): Promise<{ success: boolean; user: any; token?: string; message?: string }> {
+    return {
+      success: true,
+      user: {
+        id: 'mock-user-1',
+        name: data.identifier === 'Ahmed' ? 'Ahmed' : 'Admin',
+        username: data.identifier || 'Ahmed',
+        email: 'ahmed@aegis-smp.net',
+        role: 'owner',
+        language: 'en',
+        appearance: { theme: 'dark', accent: 'emerald', animations: 'full', glassEffect: 'high', compactMode: false },
+        notifications: { serverRestart: true, serverCrash: true, backupComplete: true, backupFailure: true, playerJoin: true, playerLeave: true, performanceWarning: true, scheduledBroadcast: true, modError: true },
+        serverConnected: true
+      },
+      token: 'mock-token'
+    };
+  }
+
+  async sendVerificationCode(data: any): Promise<any> {
+    return { success: true, cooldownSeconds: 60, expiresInSeconds: 600, maskedEmail: 'a•••••@gmail.com' };
+  }
+
+  async verifyCode(data: any): Promise<any> {
+    return { success: true, user: { id: 'mock-user-1', name: 'Ahmed', email: 'ahmed@aegis-smp.net' }, token: 'mock-token' };
+  }
+
+  async forgotPassword(email: string): Promise<any> {
+    return { success: true, cooldownSeconds: 60, expiresInSeconds: 600, maskedEmail: 'a•••••@gmail.com' };
+  }
+
+  async resetPasswordWithCode(data: any): Promise<any> {
+    return { success: true, message: 'Password reset successful' };
+  }
+
+  async resetPassword(data: any): Promise<any> {
+    return this.resetPasswordWithCode(data);
+  }
+
+  async requestEmailChange(newEmail: string): Promise<any> {
+    return { success: true, cooldownSeconds: 60, expiresInSeconds: 600, maskedEmail: newEmail };
+  }
+
+  async verifyEmailChange(code: string): Promise<any> {
+    return { success: true, user: { id: 'mock-user-1', email: 'new@aegis-smp.net' }, message: 'Email updated' };
+  }
+
+  async logout(): Promise<{ success: boolean }> {
+    return { success: true };
+  }
+
+  async getSession(): Promise<{ success: boolean; authenticated?: boolean; user: any }> {
+    return {
+      success: true,
+      authenticated: true,
+      user: {
+        id: 'mock-user-1',
+        name: 'Ahmed',
+        username: 'Ahmed',
+        email: 'ahmed@aegis-smp.net',
+        role: 'owner',
+        language: 'en',
+        appearance: { theme: 'dark', accent: 'emerald', animations: 'full', glassEffect: 'high', compactMode: false },
+        notifications: { serverRestart: true, serverCrash: true, backupComplete: true, backupFailure: true, playerJoin: true, playerLeave: true, performanceWarning: true, scheduledBroadcast: true, modError: true },
+        serverConnected: true
+      }
+    };
+  }
+
+  async getActiveSessions(): Promise<{ sessions: any[] }> {
+    return {
+      sessions: [
+        {
+          id: 'mock-sess-1',
+          userId: 'mock-user-1',
+          createdAt: new Date().toISOString(),
+          lastActiveAt: new Date().toISOString(),
+          ipAddress: '127.0.0.1',
+          userAgent: 'Current Browser',
+          deviceType: 'desktop',
+          browser: 'Chrome / Edge',
+          os: 'Windows / Linux',
+          isCurrent: true
+        }
+      ]
+    };
+  }
+
+  async getSessions(): Promise<{ sessions: any[] }> {
+    return this.getActiveSessions();
+  }
+
+  async revokeSession(): Promise<{ success: boolean }> {
+    return { success: true };
+  }
+
+  async revokeOtherSessions(): Promise<{ success: boolean; count: number }> {
+    return { success: true, count: 0 };
+  }
+
+  async revokeAllOtherSessions(): Promise<{ success: boolean; count?: number }> {
+    return { success: true, count: 0 };
+  }
+
+  async updateUserProfile(data: any): Promise<{ success: boolean; user: any }> {
+    return { success: true, user: { id: 'mock-user-1', ...data } };
+  }
+
+  async updateProfile(data: any): Promise<{ success: boolean; user: any }> {
+    return this.updateUserProfile(data);
+  }
+
+  async updateAppearance(data: any): Promise<{ success: boolean; appearance?: any; user?: any }> {
+    return { success: true, appearance: data };
+  }
+
+  async updateNotifications(data: any): Promise<{ success: boolean; notifications?: any; user?: any }> {
+    return { success: true, notifications: data };
+  }
+
+  async changePassword(): Promise<{ success: boolean; message: string }> {
+    return { success: true, message: 'Password updated successfully' };
+  }
+
+  async deleteAccount(): Promise<{ success: boolean }> {
+    return { success: true };
+  }
+
+  async exportAccountData(): Promise<any> {
+    return { user: { name: 'Ahmed', role: 'owner' } };
+  }
+
+  async getServers(): Promise<{ servers: any[]; activeServerId: string }> {
+    return {
+      servers: [
+        {
+          id: 'mock-server-1',
+          name: 'Aegis Core SMP',
+          serverType: 'Fabric',
+          mcVersion: '1.20.4',
+          host: '127.0.0.1',
+          port: 25565,
+          userRole: 'owner',
+          createdAt: new Date().toISOString()
+        }
+      ],
+      activeServerId: 'mock-server-1'
+    };
+  }
+
+  async createServer(data: any): Promise<{ success: boolean; server: any }> {
+    return {
+      success: true,
+      server: {
+        id: 'mock-server-2',
+        name: data.name || 'New Realm',
+        serverType: data.serverType || data.type || 'Fabric',
+        mcVersion: data.mcVersion || '1.20.4',
+        host: data.host || '127.0.0.1',
+        port: data.port || 25565,
+        userRole: 'owner',
+        createdAt: new Date().toISOString()
+      }
+    };
+  }
+
+  async selectActiveServer(serverId: string): Promise<{ success: boolean; activeServerId: string; server?: any }> {
+    return { success: true, activeServerId: serverId };
+  }
+
+  async updateServer(serverId: string, data: any): Promise<{ success: boolean; server: any }> {
+    return { success: true, server: { id: serverId, ...data } };
+  }
+
+  async deleteServer(): Promise<{ success: boolean }> {
+    return { success: true };
+  }
+
+  async getServerMembers(): Promise<{ members: any[] }> {
+    return {
+      members: [
+        {
+          id: 'mem-1',
+          userId: 'mock-user-1',
+          serverId: 'mock-server-1',
+          role: 'owner',
+          name: 'Ahmed',
+          username: 'Ahmed',
+          email: 'ahmed@aegis-smp.net',
+          joinedAt: new Date().toISOString()
+        }
+      ]
+    };
+  }
+
+  async inviteServerMember(): Promise<{ success: boolean; member: any }> {
+    return {
+      success: true,
+      member: {
+        id: 'mem-2',
+        role: 'operator',
+        name: 'New Moderator',
+        username: 'mod_alex',
+        email: 'alex@aegis-smp.net',
+        joinedAt: new Date().toISOString()
+      }
+    };
+  }
+
+  async addServerMember(serverId: string, data: { username: string; role: string }): Promise<{ success: boolean; member: any }> {
+    return this.inviteServerMember();
+  }
+
+  async updateServerMemberRole(): Promise<{ success: boolean }> {
+    return { success: true };
+  }
+
+  async removeServerMember(): Promise<{ success: boolean }> {
+    return { success: true };
   }
 }
 

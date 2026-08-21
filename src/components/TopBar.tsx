@@ -32,7 +32,7 @@ interface TopBarProps {
   appearance: AppearanceConfig;
   notifications: NotificationConfig;
   lang: Language;
-  onOpenSettings: (tab?: 'profile' | 'appearance' | 'notifications' | 'security') => void;
+  onOpenSettings: (tab?: 'profile' | 'appearance' | 'notifications' | 'security' | 'servers') => void;
   onToggleLang: () => void;
   onLogout: () => void;
   onChangeRole: (role: UserRole) => void;

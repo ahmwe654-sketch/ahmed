@@ -1,4 +1,5 @@
 import React, { useState } from 'react';
+import { motion, AnimatePresence } from 'motion/react';
 import {
   Shield,
   ArrowRight,
@@ -8,11 +9,22 @@ import {
   Sparkles,
   Server,
   Cpu,
-  Boxes
+  Boxes,
+  Lock,
+  Mail,
+  User,
+  AlertCircle,
+  Loader2,
+  Eye,
+  EyeOff,
+  Globe,
+  Radio
 } from 'lucide-react';
 import { Language, UserProfile } from '../types';
 import { getTranslation } from '../utils/i18n';
 import { sound } from '../utils/sound';
+import { api } from '../services/api';
+import { EmailVerificationScreen } from './EmailVerificationScreen';
 
 interface OnboardingModalProps {
   lang: Language;
@@ -27,9 +39,22 @@ export const OnboardingModal: React.FC<OnboardingModalProps> = ({
 }) => {
   const [step, setStep] = useState(1);
   const [name, setName] = useState('');
-  const [serverName, setServerName] = useState('');
+  const [username, setUsername] = useState('');
+  const [email, setEmail] = useState('');
+  const [password, setPassword] = useState('');
+  const [confirmPassword, setConfirmPassword] = useState('');
+  const [showPassword, setShowPassword] = useState(false);
+  const [serverName, setServerName] = useState('Aegis Core SMP');
   const [serverType, setServerType] = useState('Fabric');
   const [mcVersion, setMcVersion] = useState('1.20.4');
+  const [selectedLang, setSelectedLang] = useState<Language>(lang);
+  const [isLoading, setIsLoading] = useState(false);
+  const [errorMessage, setErrorMessage] = useState<string | null>(null);
+
+  // Email verification state
+  const [maskedEmail, setMaskedEmail] = useState('');
+  const [cooldownSec, setCooldownSec] = useState(60);
+  const [devCode, setDevCode] = useState<string | undefined>();
 
   const serverTypeOptions = [
     {
@@ -54,7 +79,7 @@ export const OnboardingModal: React.FC<OnboardingModalProps> = ({
     {
       id: 'Other',
       label: 'Paper / Spigot / Other',
-      desc: 'Plugin ecosystem or custom hybrid Java server loaders',
+      desc: 'High-concurrency plugin ecosystem & server loaders',
       icon: Cpu
     }
   ];
@@ -67,352 +92,527 @@ export const OnboardingModal: React.FC<OnboardingModalProps> = ({
     { version: '1.21.0', status: 'Experimental / Tricky Trials' }
   ];
 
-  const handleNext = (e?: React.FormEvent) => {
+  const handleNext = async (e?: React.FormEvent) => {
     if (e) e.preventDefault();
     sound.playClick();
-    if (step === 1 && !name.trim()) return;
-    if (step === 2 && !serverName.trim()) setServerName('Aegis Core SMP');
-    if (step < 5) {
-      setStep((s) => s + 1);
-    } else {
-      sound.playSuccess();
-      onComplete({
-        name: name.trim() || 'Ahmed',
-        serverName: serverName.trim() || 'Aegis Core SMP',
-        serverType,
-        mcVersion,
-        role: 'owner'
-      });
+    setErrorMessage(null);
+
+    // Step 1 validation: Credentials
+    if (step === 1) {
+      if (!name.trim()) {
+        setErrorMessage('Please enter your full name or display name.');
+        return;
+      }
+      if (!email.trim() || !email.includes('@')) {
+        setErrorMessage('Please enter a valid email address.');
+        return;
+      }
+      if (!password || password.length < 8) {
+        setErrorMessage('Password must be at least 8 characters long.');
+        return;
+      }
+      if (password !== confirmPassword) {
+        setErrorMessage('Passwords do not match.');
+        return;
+      }
+      if (!username.trim()) {
+        setUsername(name.trim().toLowerCase().replace(/[^a-z0-9_]/g, '_'));
+      }
+      setStep(2);
+      return;
+    }
+
+    // Step 2 validation: Server profile
+    if (step === 2) {
+      if (!serverName.trim()) {
+        setServerName('Aegis Core SMP');
+      }
+      setStep(3);
+      return;
+    }
+
+    // Step 3: Localization & Submit to backend registration
+    if (step === 3) {
+      setIsLoading(true);
+      try {
+        const regRes = await api.register({
+          username: username.trim() || name.trim().toLowerCase().replace(/[^a-z0-9_]/g, '_'),
+          name: name.trim(),
+          email: email.trim().toLowerCase(),
+          password: password.trim(),
+          serverName: serverName.trim() || 'Aegis Core SMP',
+          serverType,
+          mcVersion,
+          language: selectedLang
+        });
+
+        if (regRes.requireVerification) {
+          sound.playSuccess();
+          setMaskedEmail(regRes.maskedEmail || email.trim());
+          setCooldownSec(regRes.cooldownSeconds || 60);
+          setDevCode(regRes.devCode);
+          setStep(4);
+        } else if (regRes.success && regRes.user) {
+          sound.playSuccess();
+          onComplete(regRes.user);
+        } else {
+          throw new Error(regRes.message || 'Registration failed.');
+        }
+      } catch (err: any) {
+        sound.playAlert();
+        setErrorMessage(err.message || 'Failed to create cloud account.');
+      } finally {
+        setIsLoading(false);
+      }
     }
   };
 
-  const handleBack = () => {
-    sound.playClick();
-    if (step > 1) setStep((s) => s - 1);
+  const handleVerifyEmail = async (code: string) => {
+    try {
+      const res = await api.verifyCode({
+        email: email.trim().toLowerCase(),
+        code,
+        type: 'registration'
+      });
+
+      if (res.success && res.user) {
+        sound.playSuccess();
+        setTimeout(() => {
+          onComplete(res.user);
+        }, 800);
+        return { success: true };
+      } else {
+        return {
+          success: false,
+          error: res.message || 'Invalid verification code.',
+          remainingAttempts: res.remainingAttempts
+        };
+      }
+    } catch (err: any) {
+      return { success: false, error: err?.message || 'Verification failed.' };
+    }
+  };
+
+  const handleResendCode = async () => {
+    try {
+      const res = await api.sendVerificationCode({
+        email: email.trim().toLowerCase(),
+        type: 'registration'
+      });
+      return {
+        success: res.success,
+        cooldownSeconds: res.cooldownSeconds || 60,
+        maskedEmail: res.maskedEmail,
+        devCode: res.devCode,
+        error: res.message
+      };
+    } catch (err: any) {
+      return { success: false, error: err?.message || 'Failed to resend code.' };
+    }
   };
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-[#07080b]/90 backdrop-blur-xl animate-in fade-in select-none bg-ambient-deck">
-      {/* Soft Ambient Neon Glows */}
-      <div className="absolute w-96 h-96 bg-emerald-500/10 rounded-full blur-3xl pointer-events-none -top-10" />
-      <div className="absolute w-96 h-96 bg-violet-500/10 rounded-full blur-3xl pointer-events-none -bottom-10" />
+    <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/80 backdrop-blur-xl animate-fade-in select-none">
+      <motion.div
+        initial={{ opacity: 0, scale: 0.95, y: 15 }}
+        animate={{ opacity: 1, scale: 1, y: 0 }}
+        exit={{ opacity: 0, scale: 0.95, y: 15 }}
+        transition={{ duration: 0.22, ease: 'easeOut' }}
+        className="w-full max-w-xl p-6 sm:p-8 rounded-2xl bg-[#090b11]/95 border border-white/10 shadow-2xl shadow-violet-950/40 relative overflow-hidden backdrop-blur-2xl"
+      >
+        {/* Ambient Glows */}
+        <div className="absolute -top-24 -right-24 w-48 h-48 bg-violet-600/10 rounded-full blur-3xl pointer-events-none" />
+        <div className="absolute -bottom-24 -left-24 w-48 h-48 bg-blue-600/10 rounded-full blur-3xl pointer-events-none" />
 
-      {/* Onboarding Glass Card */}
-      <div className="relative z-10 max-w-xl w-full glass-panel-high rounded-3xl p-6 sm:p-8 border border-white/10 shadow-[0_20px_50px_rgba(0,0,0,0.8)] overflow-hidden">
-        {/* Step Progress Dots */}
-        <div className="flex items-center justify-between mb-8 pb-4 border-b border-white/8">
-          <div className="flex items-center gap-2">
-            <div className="w-8 h-8 rounded-xl bg-emerald-500/20 border border-emerald-500/40 flex items-center justify-center text-emerald-400">
-              <Shield className="w-4 h-4" />
+        {/* Progress Stepper */}
+        {step <= 3 && (
+          <div className="flex items-center justify-between mb-6 pb-4 border-b border-white/5">
+            <div className="flex items-center gap-2">
+              {[1, 2, 3].map((s) => (
+                <div
+                  key={s}
+                  className={`h-1.5 rounded-full transition-all duration-300 ${
+                    s === step
+                      ? 'w-8 bg-gradient-to-r from-violet-500 to-indigo-500'
+                      : s < step
+                      ? 'w-4 bg-violet-500/50'
+                      : 'w-4 bg-white/10'
+                  }`}
+                />
+              ))}
             </div>
-            <span className="text-xs font-mono font-bold tracking-wider text-slate-300">
-              AEGIS SETUP
+            <span className="text-[11px] font-mono text-slate-400">
+              STEP {step} OF 3
             </span>
           </div>
+        )}
 
-          <div className="flex items-center gap-1.5">
-            {[1, 2, 3, 4, 5].map((i) => (
-              <div
-                key={i}
-                className={`h-1.5 rounded-full transition-all duration-300 ${
-                  step === i
-                    ? 'w-6 bg-emerald-400 shadow-[0_0_8px_#10b981]'
-                    : step > i
-                    ? 'w-2.5 bg-emerald-500/50'
-                    : 'w-2 bg-white/10'
-                }`}
-              />
-            ))}
-          </div>
+        {/* Error Alert */}
+        <AnimatePresence mode="wait">
+          {errorMessage && (
+            <motion.div
+              initial={{ opacity: 0, y: -8 }}
+              animate={{ opacity: 1, y: 0 }}
+              exit={{ opacity: 0 }}
+              className="mb-4 p-3 rounded-xl bg-red-500/10 border border-red-500/20 text-red-300 text-xs flex items-center gap-2.5"
+            >
+              <AlertCircle className="w-4 h-4 shrink-0 text-red-400" />
+              <div className="flex-1">{errorMessage}</div>
+            </motion.div>
+          )}
+        </AnimatePresence>
 
-          <button
-            type="button"
-            onClick={onSwitchToLogin}
-            className="text-xs font-semibold text-slate-400 hover:text-emerald-300 transition-colors cursor-pointer"
-          >
-            {getTranslation(lang, 'login_btn')}
-          </button>
-        </div>
-
-        {/* STEP 1: What's your name? */}
+        {/* STEP 1: Account Credentials */}
         {step === 1 && (
-          <form onSubmit={handleNext} className="space-y-6 animate-in fade-in duration-300">
-            <div className="space-y-2">
-              <span className="text-[11px] font-bold uppercase tracking-wider text-emerald-400 font-mono">
-                Step 1 / 4
-              </span>
-              <h2 className="text-2xl sm:text-3xl font-extrabold text-white tracking-tight">
-                {getTranslation(lang, 'step_1_title')}
-              </h2>
-              <p className="text-xs text-slate-400 leading-relaxed">
-                {getTranslation(lang, 'step_1_desc')}
-              </p>
+          <form onSubmit={handleNext} className="space-y-4">
+            <div className="flex items-center gap-3 mb-2">
+              <div className="w-10 h-10 rounded-xl bg-violet-600/15 border border-violet-500/30 flex items-center justify-center">
+                <User className="w-5 h-5 text-violet-400" />
+              </div>
+              <div>
+                <h2 className="text-xl font-bold text-white tracking-tight">Create Cloud Account</h2>
+                <p className="text-xs text-slate-400">Set up your administrator credentials</p>
+              </div>
             </div>
 
-            <div className="space-y-2 pt-2">
-              <input
-                id="onboarding-name-input"
-                type="text"
-                value={name}
-                onChange={(e) => setName(e.target.value)}
-                placeholder={getTranslation(lang, 'step_1_placeholder')}
-                autoFocus
-                required
-                className="w-full bg-black/50 border border-white/12 rounded-2xl px-5 py-3.5 text-base sm:text-lg text-white placeholder:text-slate-600 focus:outline-none focus:border-emerald-500/60 focus:ring-2 focus:ring-emerald-500/20 transition-all font-medium"
-              />
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+              <div className="space-y-1.5">
+                <label className="text-xs font-semibold text-slate-300">Display Name</label>
+                <input
+                  type="text"
+                  value={name}
+                  onChange={(e) => setName(e.target.value)}
+                  placeholder="e.g. Alex Rivera"
+                  required
+                  className="w-full px-3.5 py-2.5 rounded-xl border border-white/10 bg-[#0d101a] text-white text-sm placeholder:text-slate-500 focus:outline-none focus:border-violet-500 focus:ring-2 focus:ring-violet-500/20 transition-all"
+                />
+              </div>
+
+              <div className="space-y-1.5">
+                <label className="text-xs font-semibold text-slate-300">Username (optional)</label>
+                <input
+                  type="text"
+                  value={username}
+                  onChange={(e) => setUsername(e.target.value.toLowerCase().replace(/[^a-z0-9_]/g, ''))}
+                  placeholder="e.g. alex_admin"
+                  className="w-full px-3.5 py-2.5 rounded-xl border border-white/10 bg-[#0d101a] text-white text-sm placeholder:text-slate-500 focus:outline-none focus:border-violet-500 focus:ring-2 focus:ring-violet-500/20 transition-all font-mono"
+                />
+              </div>
             </div>
 
-            <div className="flex items-center justify-end pt-4">
+            <div className="space-y-1.5">
+              <label className="text-xs font-semibold text-slate-300">Email Address (for Verification)</label>
+              <div className="relative">
+                <Mail className="absolute left-3.5 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400" />
+                <input
+                  type="email"
+                  value={email}
+                  onChange={(e) => setEmail(e.target.value)}
+                  placeholder="alex@example.com"
+                  required
+                  className="w-full pl-10 pr-4 py-2.5 rounded-xl border border-white/10 bg-[#0d101a] text-white text-sm placeholder:text-slate-500 focus:outline-none focus:border-violet-500 focus:ring-2 focus:ring-violet-500/20 transition-all"
+                />
+              </div>
+            </div>
+
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+              <div className="space-y-1.5">
+                <label className="text-xs font-semibold text-slate-300">Password</label>
+                <div className="relative">
+                  <Lock className="absolute left-3.5 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400" />
+                  <input
+                    type={showPassword ? 'text' : 'password'}
+                    value={password}
+                    onChange={(e) => setPassword(e.target.value)}
+                    placeholder="Min. 8 chars"
+                    required
+                    minLength={8}
+                    className="w-full pl-10 pr-9 py-2.5 rounded-xl border border-white/10 bg-[#0d101a] text-white text-sm placeholder:text-slate-500 focus:outline-none focus:border-violet-500 focus:ring-2 focus:ring-violet-500/20 transition-all font-mono"
+                  />
+                  <button
+                    type="button"
+                    onClick={() => setShowPassword(!showPassword)}
+                    className="absolute right-2.5 top-1/2 -translate-y-1/2 p-1 text-slate-400 hover:text-slate-200 cursor-pointer"
+                  >
+                    {showPassword ? <EyeOff className="w-3.5 h-3.5" /> : <Eye className="w-3.5 h-3.5" />}
+                  </button>
+                </div>
+              </div>
+
+              <div className="space-y-1.5">
+                <label className="text-xs font-semibold text-slate-300">Confirm Password</label>
+                <div className="relative">
+                  <Lock className="absolute left-3.5 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400" />
+                  <input
+                    type={showPassword ? 'text' : 'password'}
+                    value={confirmPassword}
+                    onChange={(e) => setConfirmPassword(e.target.value)}
+                    placeholder="Repeat password"
+                    required
+                    minLength={8}
+                    className="w-full pl-10 pr-4 py-2.5 rounded-xl border border-white/10 bg-[#0d101a] text-white text-sm placeholder:text-slate-500 focus:outline-none focus:border-violet-500 focus:ring-2 focus:ring-violet-500/20 transition-all font-mono"
+                  />
+                </div>
+              </div>
+            </div>
+
+            <div className="pt-2 flex items-center justify-between">
+              <button
+                type="button"
+                onClick={() => {
+                  sound.playClick();
+                  onSwitchToLogin();
+                }}
+                className="text-xs text-slate-400 hover:text-white transition-colors cursor-pointer"
+              >
+                Already have an account? <span className="text-violet-400 font-semibold">Sign In</span>
+              </button>
+
               <button
                 type="submit"
-                disabled={!name.trim()}
-                className="px-6 py-3 rounded-2xl bg-emerald-500 hover:bg-emerald-400 disabled:opacity-40 text-black font-extrabold text-xs tracking-wide transition-all shadow-[0_0_20px_rgba(16,185,129,0.3)] flex items-center gap-2 cursor-pointer group"
+                className="py-2.5 px-5 rounded-xl font-semibold text-sm bg-gradient-to-r from-violet-600 to-indigo-600 hover:from-violet-500 hover:to-indigo-500 text-white shadow-lg shadow-violet-600/25 transition-all flex items-center gap-2 cursor-pointer"
               >
-                <span>{getTranslation(lang, 'btn_next')}</span>
-                <ArrowRight className="w-4 h-4 group-hover:translate-x-1 transition-transform" />
+                <span>Continue</span>
+                <ArrowRight className="w-4 h-4" />
               </button>
             </div>
           </form>
         )}
 
-        {/* STEP 2: What should we call your server? */}
+        {/* STEP 2: Minecraft Realm Info */}
         {step === 2 && (
-          <form onSubmit={handleNext} className="space-y-6 animate-in fade-in duration-300">
-            <div className="space-y-2">
-              <span className="text-[11px] font-bold uppercase tracking-wider text-emerald-400 font-mono">
-                Step 2 / 4
-              </span>
-              <h2 className="text-2xl sm:text-3xl font-extrabold text-white tracking-tight">
-                {getTranslation(lang, 'step_2_title')}
-              </h2>
-              <p className="text-xs text-slate-400 leading-relaxed">
-                {getTranslation(lang, 'step_2_desc')}
-              </p>
+          <form onSubmit={handleNext} className="space-y-4">
+            <div className="flex items-center gap-3 mb-2">
+              <div className="w-10 h-10 rounded-xl bg-violet-600/15 border border-violet-500/30 flex items-center justify-center">
+                <Server className="w-5 h-5 text-violet-400" />
+              </div>
+              <div>
+                <h2 className="text-xl font-bold text-white tracking-tight">Configure Realm</h2>
+                <p className="text-xs text-slate-400">Select server engine and software parameters</p>
+              </div>
             </div>
 
-            <div className="space-y-2 pt-2">
+            <div className="space-y-1.5">
+              <label className="text-xs font-semibold text-slate-300">Server Realm Name</label>
               <input
-                id="onboarding-servername-input"
                 type="text"
                 value={serverName}
                 onChange={(e) => setServerName(e.target.value)}
-                placeholder={getTranslation(lang, 'step_2_placeholder')}
-                autoFocus
-                className="w-full bg-black/50 border border-white/12 rounded-2xl px-5 py-3.5 text-base sm:text-lg text-white placeholder:text-slate-600 focus:outline-none focus:border-emerald-500/60 focus:ring-2 focus:ring-emerald-500/20 transition-all font-medium"
+                placeholder="Aegis Core SMP"
+                required
+                className="w-full px-3.5 py-2.5 rounded-xl border border-white/10 bg-[#0d101a] text-white text-sm placeholder:text-slate-500 focus:outline-none focus:border-violet-500 focus:ring-2 focus:ring-violet-500/20 transition-all"
               />
             </div>
 
-            <div className="flex items-center justify-between pt-4">
-              <button
-                type="button"
-                onClick={handleBack}
-                className="px-4 py-2.5 rounded-xl bg-white/5 hover:bg-white/10 text-slate-300 text-xs font-semibold flex items-center gap-2 cursor-pointer transition-colors"
-              >
-                <ArrowLeft className="w-3.5 h-3.5" />
-                <span>{getTranslation(lang, 'btn_back')}</span>
-              </button>
-
-              <button
-                type="submit"
-                className="px-6 py-3 rounded-2xl bg-emerald-500 hover:bg-emerald-400 text-black font-extrabold text-xs tracking-wide transition-all shadow-[0_0_20px_rgba(16,185,129,0.3)] flex items-center gap-2 cursor-pointer group"
-              >
-                <span>{getTranslation(lang, 'btn_next')}</span>
-                <ArrowRight className="w-4 h-4 group-hover:translate-x-1 transition-transform" />
-              </button>
-            </div>
-          </form>
-        )}
-
-        {/* STEP 3: Server Type */}
-        {step === 3 && (
-          <div className="space-y-6 animate-in fade-in duration-300">
             <div className="space-y-2">
-              <span className="text-[11px] font-bold uppercase tracking-wider text-emerald-400 font-mono">
-                Step 3 / 4
-              </span>
-              <h2 className="text-2xl sm:text-3xl font-extrabold text-white tracking-tight">
-                {getTranslation(lang, 'step_3_title')}
-              </h2>
-              <p className="text-xs text-slate-400 leading-relaxed">
-                {getTranslation(lang, 'step_3_desc')}
-              </p>
-            </div>
-
-            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 pt-1">
-              {serverTypeOptions.map((opt) => {
-                const Icon = opt.icon;
-                const isSelected = serverType === opt.id;
-                return (
-                  <button
-                    key={opt.id}
-                    type="button"
-                    onClick={() => {
-                      sound.playClick();
-                      setServerType(opt.id);
-                    }}
-                    className={`p-4 rounded-2xl border text-left transition-all cursor-pointer relative flex flex-col justify-between ${
-                      isSelected
-                        ? 'bg-emerald-500/15 border-emerald-500/50 shadow-[0_0_20px_rgba(16,185,129,0.15)] ring-1 ring-emerald-400/40'
-                        : 'bg-black/30 border-white/8 hover:bg-white/[0.04] hover:border-white/20'
-                    }`}
-                  >
-                    <div>
-                      <div className="flex items-center justify-between mb-2">
-                        <div
-                          className={`w-8 h-8 rounded-xl flex items-center justify-center ${
-                            isSelected
-                              ? 'bg-emerald-500/20 text-emerald-400'
-                              : 'bg-white/5 text-slate-400'
-                          }`}
-                        >
-                          <Icon className="w-4 h-4" />
+              <label className="text-xs font-semibold text-slate-300">Server Software Core</label>
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-2.5">
+                {serverTypeOptions.map((opt) => {
+                  const Icon = opt.icon;
+                  const isSelected = serverType === opt.id;
+                  return (
+                    <div
+                      key={opt.id}
+                      onClick={() => {
+                        sound.playClick();
+                        setServerType(opt.id);
+                      }}
+                      className={`p-3 rounded-xl border cursor-pointer transition-all ${
+                        isSelected
+                          ? 'border-violet-500/80 bg-violet-950/20 shadow-lg shadow-violet-950/40'
+                          : 'border-white/5 bg-[#0d101a] hover:border-white/20'
+                      }`}
+                    >
+                      <div className="flex items-center justify-between mb-1">
+                        <div className="flex items-center gap-2">
+                          <Icon className={`w-4 h-4 ${isSelected ? 'text-violet-400' : 'text-slate-400'}`} />
+                          <span className="text-xs font-bold text-white">{opt.label}</span>
                         </div>
                         {opt.badge && (
-                          <span className="px-2 py-0.5 rounded-full bg-emerald-500/20 text-emerald-300 text-[10px] font-bold border border-emerald-500/30">
+                          <span className="text-[9px] px-1.5 py-0.5 rounded-full bg-violet-600/20 border border-violet-500/30 text-violet-300 font-medium">
                             {opt.badge}
                           </span>
                         )}
                       </div>
-                      <h4 className="text-sm font-bold text-white mb-1">{opt.label}</h4>
-                      <p className="text-[11px] text-slate-400 leading-snug">{opt.desc}</p>
+                      <p className="text-[11px] text-slate-400 line-clamp-2">{opt.desc}</p>
                     </div>
-                  </button>
-                );
-              })}
+                  );
+                })}
+              </div>
             </div>
 
-            <div className="flex items-center justify-between pt-4">
+            <div className="space-y-1.5">
+              <label className="text-xs font-semibold text-slate-300">Target Minecraft Version</label>
+              <select
+                value={mcVersion}
+                onChange={(e) => setMcVersion(e.target.value)}
+                className="w-full px-3.5 py-2.5 rounded-xl border border-white/10 bg-[#0d101a] text-white text-sm focus:outline-none focus:border-violet-500 focus:ring-2 focus:ring-violet-500/20 transition-all font-mono"
+              >
+                {versionOptions.map((v) => (
+                  <option key={v.version} value={v.version} className="bg-[#090b11] text-white">
+                    {v.version} - {v.status}
+                  </option>
+                ))}
+              </select>
+            </div>
+
+            <div className="pt-2 flex items-center justify-between">
               <button
                 type="button"
-                onClick={handleBack}
-                className="px-4 py-2.5 rounded-xl bg-white/5 hover:bg-white/10 text-slate-300 text-xs font-semibold flex items-center gap-2 cursor-pointer transition-colors"
+                onClick={() => {
+                  sound.playClick();
+                  setStep(1);
+                }}
+                className="text-xs text-slate-400 hover:text-white transition-colors flex items-center gap-1 cursor-pointer"
               >
                 <ArrowLeft className="w-3.5 h-3.5" />
-                <span>{getTranslation(lang, 'btn_back')}</span>
+                <span>Back</span>
               </button>
 
               <button
-                type="button"
-                onClick={() => handleNext()}
-                className="px-6 py-3 rounded-2xl bg-emerald-500 hover:bg-emerald-400 text-black font-extrabold text-xs tracking-wide transition-all shadow-[0_0_20px_rgba(16,185,129,0.3)] flex items-center gap-2 cursor-pointer group"
+                type="submit"
+                className="py-2.5 px-5 rounded-xl font-semibold text-sm bg-gradient-to-r from-violet-600 to-indigo-600 hover:from-violet-500 hover:to-indigo-500 text-white shadow-lg shadow-violet-600/25 transition-all flex items-center gap-2 cursor-pointer"
               >
-                <span>{getTranslation(lang, 'btn_next')}</span>
-                <ArrowRight className="w-4 h-4 group-hover:translate-x-1 transition-transform" />
+                <span>Continue</span>
+                <ArrowRight className="w-4 h-4" />
               </button>
             </div>
-          </div>
+          </form>
         )}
 
-        {/* STEP 4: Minecraft Version */}
+        {/* STEP 3: Language & Localization Preference */}
+        {step === 3 && (
+          <form onSubmit={handleNext} className="space-y-4">
+            <div className="flex items-center gap-3 mb-2">
+              <div className="w-10 h-10 rounded-xl bg-violet-600/15 border border-violet-500/30 flex items-center justify-center">
+                <Globe className="w-5 h-5 text-violet-400" />
+              </div>
+              <div>
+                <h2 className="text-xl font-bold text-white tracking-tight">Localization & Finalize</h2>
+                <p className="text-xs text-slate-400">Choose interface language and dispatch verification code</p>
+              </div>
+            </div>
+
+            <div className="space-y-2">
+              <label className="text-xs font-semibold text-slate-300">Interface Language</label>
+              <div className="grid grid-cols-2 gap-3">
+                <div
+                  onClick={() => {
+                    sound.playClick();
+                    setSelectedLang('en');
+                  }}
+                  className={`p-3.5 rounded-xl border cursor-pointer transition-all flex items-center justify-between ${
+                    selectedLang === 'en'
+                      ? 'border-violet-500/80 bg-violet-950/20 shadow-lg shadow-violet-950/40'
+                      : 'border-white/5 bg-[#0d101a] hover:border-white/20'
+                  }`}
+                >
+                  <div>
+                    <span className="text-sm font-bold text-white block">English</span>
+                    <span className="text-[11px] text-slate-400">Default (LTR)</span>
+                  </div>
+                  {selectedLang === 'en' && <Check className="w-4 h-4 text-violet-400" />}
+                </div>
+
+                <div
+                  onClick={() => {
+                    sound.playClick();
+                    setSelectedLang('ar');
+                  }}
+                  className={`p-3.5 rounded-xl border cursor-pointer transition-all flex items-center justify-between ${
+                    selectedLang === 'ar'
+                      ? 'border-violet-500/80 bg-violet-950/20 shadow-lg shadow-violet-950/40'
+                      : 'border-white/5 bg-[#0d101a] hover:border-white/20'
+                  }`}
+                >
+                  <div>
+                    <span className="text-sm font-bold text-white block">العربية</span>
+                    <span className="text-[11px] text-slate-400">Arabic (RTL)</span>
+                  </div>
+                  {selectedLang === 'ar' && <Check className="w-4 h-4 text-violet-400" />}
+                </div>
+              </div>
+            </div>
+
+            {/* Account Summary */}
+            <div className="p-3.5 rounded-xl bg-[#0d101a] border border-white/5 space-y-2">
+              <span className="text-[11px] font-mono text-slate-400 uppercase tracking-wider block">Account Summary</span>
+              <div className="grid grid-cols-2 gap-2 text-xs">
+                <div>
+                  <span className="text-slate-500 block">Owner:</span>
+                  <span className="text-white font-medium">{name}</span>
+                </div>
+                <div>
+                  <span className="text-slate-500 block">Email:</span>
+                  <span className="text-white font-medium truncate">{email}</span>
+                </div>
+                <div>
+                  <span className="text-slate-500 block">Server:</span>
+                  <span className="text-white font-medium">{serverName}</span>
+                </div>
+                <div>
+                  <span className="text-slate-500 block">Core:</span>
+                  <span className="text-white font-medium">{serverType} {mcVersion}</span>
+                </div>
+              </div>
+            </div>
+
+            <div className="pt-2 flex items-center justify-between">
+              <button
+                type="button"
+                onClick={() => {
+                  sound.playClick();
+                  setStep(2);
+                }}
+                disabled={isLoading}
+                className="text-xs text-slate-400 hover:text-white transition-colors flex items-center gap-1 cursor-pointer"
+              >
+                <ArrowLeft className="w-3.5 h-3.5" />
+                <span>Back</span>
+              </button>
+
+              <button
+                type="submit"
+                disabled={isLoading}
+                className="py-2.5 px-5 rounded-xl font-semibold text-sm bg-gradient-to-r from-violet-600 to-indigo-600 hover:from-violet-500 hover:to-indigo-500 text-white shadow-lg shadow-violet-600/25 disabled:opacity-40 disabled:cursor-not-allowed transition-all flex items-center gap-2 cursor-pointer"
+              >
+                {isLoading ? (
+                  <>
+                    <Loader2 className="w-4 h-4 animate-spin" />
+                    <span>Dispatching Verification...</span>
+                  </>
+                ) : (
+                  <>
+                    <span>Create & Send Code</span>
+                    <ArrowRight className="w-4 h-4" />
+                  </>
+                )}
+              </button>
+            </div>
+          </form>
+        )}
+
+        {/* STEP 4: Email Verification Screen */}
         {step === 4 && (
-          <div className="space-y-6 animate-in fade-in duration-300">
-            <div className="space-y-2">
-              <span className="text-[11px] font-bold uppercase tracking-wider text-emerald-400 font-mono">
-                Step 4 / 4
-              </span>
-              <h2 className="text-2xl sm:text-3xl font-extrabold text-white tracking-tight">
-                {getTranslation(lang, 'step_4_title')}
-              </h2>
-              <p className="text-xs text-slate-400 leading-relaxed">
-                {getTranslation(lang, 'step_4_desc')}
-              </p>
-            </div>
-
-            <div className="space-y-2 pt-1 max-h-56 overflow-y-auto custom-scrollbar pr-1">
-              {versionOptions.map((opt) => {
-                const isSelected = mcVersion === opt.version;
-                return (
-                  <button
-                    key={opt.version}
-                    type="button"
-                    onClick={() => {
-                      sound.playClick();
-                      setMcVersion(opt.version);
-                    }}
-                    className={`w-full p-3 rounded-xl border text-left flex items-center justify-between transition-all cursor-pointer ${
-                      isSelected
-                        ? 'bg-emerald-500/15 border-emerald-500/50 text-emerald-300'
-                        : 'bg-black/30 border-white/6 hover:bg-white/[0.04] text-slate-300'
-                    }`}
-                  >
-                    <div className="flex items-center gap-3">
-                      <span className="font-mono font-bold text-sm text-white">
-                        {opt.version}
-                      </span>
-                      <span className="text-xs text-slate-400">{opt.status}</span>
-                    </div>
-                    {isSelected && <Check className="w-4 h-4 text-emerald-400" />}
-                  </button>
-                );
-              })}
-            </div>
-
-            <div className="flex items-center justify-between pt-4">
-              <button
-                type="button"
-                onClick={handleBack}
-                className="px-4 py-2.5 rounded-xl bg-white/5 hover:bg-white/10 text-slate-300 text-xs font-semibold flex items-center gap-2 cursor-pointer transition-colors"
-              >
-                <ArrowLeft className="w-3.5 h-3.5" />
-                <span>{getTranslation(lang, 'btn_back')}</span>
-              </button>
-
-              <button
-                type="button"
-                onClick={() => handleNext()}
-                className="px-6 py-3 rounded-2xl bg-emerald-500 hover:bg-emerald-400 text-black font-extrabold text-xs tracking-wide transition-all shadow-[0_0_20px_rgba(16,185,129,0.3)] flex items-center gap-2 cursor-pointer group"
-              >
-                <span>{getTranslation(lang, 'btn_next')}</span>
-                <ArrowRight className="w-4 h-4 group-hover:translate-x-1 transition-transform" />
-              </button>
-            </div>
-          </div>
+          <EmailVerificationScreen
+            isModal={false}
+            email={email}
+            maskedEmail={maskedEmail}
+            type="registration"
+            initialCooldownSeconds={cooldownSec}
+            initialDevCode={devCode}
+            onVerify={handleVerifyEmail}
+            onResend={handleResendCode}
+            onBackOrChangeEmail={() => {
+              setStep(1);
+              setErrorMessage(null);
+            }}
+            title="Verify Your Email"
+            subtitle="We dispatched a 6-digit confirmation code to"
+            submitLabel="Verify & Activate Platform"
+          />
         )}
-
-        {/* STEP 5: All Set Completion Screen */}
-        {step === 5 && (
-          <div className="space-y-6 text-center py-4 animate-in fade-in zoom-in-95 duration-500">
-            <div className="w-16 h-16 rounded-3xl bg-emerald-500/20 border border-emerald-500/40 text-emerald-400 flex items-center justify-center mx-auto shadow-[0_0_30px_rgba(16,185,129,0.3)]">
-              <Sparkles className="w-8 h-8 animate-pulse" />
-            </div>
-
-            <div className="space-y-2">
-              <h2 className="text-2xl sm:text-3xl font-extrabold text-white tracking-tight">
-                {getTranslation(lang, 'all_set_title', { name: name || 'Ahmed' })}
-              </h2>
-              <p className="text-xs sm:text-sm text-slate-400 max-w-sm mx-auto leading-relaxed">
-                {getTranslation(lang, 'all_set_subtitle')}
-              </p>
-            </div>
-
-            {/* Quick Summary Pill */}
-            <div className="p-4 rounded-2xl bg-black/40 border border-white/10 max-w-sm mx-auto text-xs space-y-2">
-              <div className="flex justify-between">
-                <span className="text-slate-400">Server:</span>
-                <span className="font-bold text-white">{serverName || 'Aegis Core SMP'}</span>
-              </div>
-              <div className="flex justify-between">
-                <span className="text-slate-400">Core Engine:</span>
-                <span className="font-bold text-violet-300">{serverType} {mcVersion}</span>
-              </div>
-              <div className="flex justify-between">
-                <span className="text-slate-400">Security Role:</span>
-                <span className="font-mono font-bold text-emerald-400">OWNER</span>
-              </div>
-            </div>
-
-            <div className="pt-2">
-              <button
-                type="button"
-                onClick={() => handleNext()}
-                className="w-full sm:w-auto px-8 py-3.5 rounded-2xl bg-gradient-to-r from-emerald-500 to-emerald-400 hover:from-emerald-400 hover:to-emerald-300 text-black font-extrabold text-sm tracking-wide transition-all shadow-[0_0_25px_rgba(16,185,129,0.35)] cursor-pointer"
-              >
-                {getTranslation(lang, 'enter_dashboard')}
-              </button>
-            </div>
-          </div>
-        )}
-      </div>
+      </motion.div>
     </div>
   );
 };
