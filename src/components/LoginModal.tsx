@@ -1,11 +1,9 @@
 import React, { useState, useEffect } from 'react';
-import emailjs from '@emailjs/browser';
 import {
   Shield,
   Lock,
   Mail,
   ArrowRight,
-  Sparkles,
   Check,
   X,
   Loader2,
@@ -14,6 +12,7 @@ import {
 import { Language, UserProfile } from '../types';
 import { getTranslation } from '../utils/i18n';
 import { sound } from '../utils/sound';
+import { authApi } from '../services/api';
 
 interface LoginModalProps {
   lang: Language;
@@ -28,85 +27,66 @@ export const LoginModal: React.FC<LoginModalProps> = ({
   onSwitchToOnboarding,
   onClose
 }) => {
-  const [emailOrUser, setEmailOrUser] = useState('ahmed@aegis-smp.net');
-  const [password, setPassword] = useState('••••••••••••');
-  const [rememberMe, setRememberMe] = useState(true);
+  const [emailOrUser, setEmailOrUser] = useState('');
+  const [password, setPassword] = useState('');
+  const [rememberMe] = useState(true);
   const [isSending, setIsSending] = useState(false);
-  
-  // مراحل التحقق
-  const [step, setStep] = useState<1 | 2>(1); // 1: Login, 2: Verification Code
-  const [generatedCode, setGeneratedCode] = useState('');
+  const [step, setStep] = useState<1 | 2>(1);
+  const [challengeId, setChallengeId] = useState('');
   const [inputCode, setInputCode] = useState('');
-  const [timer, setTimer] = useState(300); // 5 دقائق
+  const [timer, setTimer] = useState(300);
   const [errorMsg, setErrorMsg] = useState('');
 
-  // إدارة عداد الـ 5 دقائق للكود
   useEffect(() => {
-    let interval: NodeJS.Timeout;
+    let interval: ReturnType<typeof setInterval> | undefined;
     if (step === 2 && timer > 0) {
-      interval = setInterval(() => setTimer((prev) => prev - 1), 1000);
+      interval = setInterval(() => setTimer((previous) => previous - 1), 1000);
     } else if (timer === 0 && step === 2) {
       setErrorMsg('انتهت صلاحية الكود. أعد الإرسال.');
     }
-    return () => clearInterval(interval);
+    return () => {
+      if (interval) clearInterval(interval);
+    };
   }, [step, timer]);
 
-  // إرسال كود التحقق عبر EmailJS
-  const handleSendCode = async (e: React.FormEvent) => {
-    e.preventDefault();
+  const handleSendCode = async (event?: React.FormEvent) => {
+    event?.preventDefault();
     setIsSending(true);
     setErrorMsg('');
 
-    const targetEmail = emailOrUser.includes('@') 
-      ? emailOrUser 
-      : `${emailOrUser}@aegis-smp.net`;
-
-    const code = Math.floor(100000 + Math.random() * 900000).toString();
-    setGeneratedCode(code);
-
     try {
-      await emailjs.send(
-        'service_hqewk0j',
-        'template_tht3dk6',
-        {
-          email: targetEmail,
-          passcode: code,
-          to_email: targetEmail
-        },
-        'kfxnN3n5Q3scuoOXx'
-      );
-
+      const response = await authApi.requestLoginCode(emailOrUser.trim(), password);
+      setChallengeId(response.challengeId);
+      setInputCode('');
+      setStep(2);
+      setTimer(response.expiresInSeconds);
       sound.playSuccess();
-      setStep(2); // الانتقال لمرحلة إدخال الكود بنفس الكارت
-      setTimer(300);
     } catch (error) {
-      console.error('EmailJS Error:', error);
-      setErrorMsg('حدث خطأ أثناء إرسال الكود. تأكد من البريد وحاول مجدداً.');
+      setErrorMsg(error instanceof Error ? error.message : 'تعذر إرسال كود التحقق. حاول مجدداً.');
     } finally {
       setIsSending(false);
     }
   };
 
-  // التحقق من الكود المدخل
-  const handleVerifyCode = (e: React.FormEvent) => {
-    e.preventDefault();
-    if (timer === 0) {
-      setErrorMsg('الكود منتهي الصلاحية، اضغط إعادة إرسال.');
+  const handleVerifyCode = async (event: React.FormEvent) => {
+    event.preventDefault();
+    if (!challengeId) {
+      setErrorMsg('أعد إرسال كود التحقق ثم حاول مجدداً.');
       return;
     }
 
-    if (inputCode.trim() === generatedCode) {
+    setIsSending(true);
+    setErrorMsg('');
+
+    try {
+      const { profile } = await authApi.verifyLoginCode(challengeId, inputCode);
       sound.playSuccess();
-      const targetEmail = emailOrUser.includes('@') ? emailOrUser : `${emailOrUser}@aegis-smp.net`;
-      onSuccess({
-        name: emailOrUser.includes('@') ? emailOrUser.split('@')[0] : emailOrUser,
-        email: targetEmail,
-        role: 'owner',
-        rememberMe
-      });
-    } else {
+      onSuccess({ ...profile, rememberMe });
+    } catch (error) {
       sound.playClick();
-      setErrorMsg('كود التحقق غير صحيح! تأكد منه وحاول ثانية.');
+      setErrorMsg(error instanceof Error ? error.message : 'كود التحقق غير صحيح أو منتهي الصلاحية.');
+    } finally {
+      setIsSending(false);
     }
   };
 
@@ -165,7 +145,8 @@ export const LoginModal: React.FC<LoginModalProps> = ({
               <div className="relative flex items-center">
                 <Mail className="absolute left-3.5 w-4 h-4 text-slate-500 pointer-events-none" />
                 <input
-                  type="text"
+                  type="email"
+                  autoComplete="email"
                   value={emailOrUser}
                   onChange={(e) => setEmailOrUser(e.target.value)}
                   placeholder={getTranslation(lang, 'login_email_placeholder')}
@@ -183,6 +164,7 @@ export const LoginModal: React.FC<LoginModalProps> = ({
                 <Lock className="absolute left-3.5 w-4 h-4 text-slate-500 pointer-events-none" />
                 <input
                   type="password"
+                  autoComplete="current-password"
                   value={password}
                   onChange={(e) => setPassword(e.target.value)}
                   placeholder={getTranslation(lang, 'login_password_placeholder')}
@@ -224,6 +206,8 @@ export const LoginModal: React.FC<LoginModalProps> = ({
               </div>
               <input
                 type="text"
+                inputMode="numeric"
+                pattern="[0-9]{6}"
                 maxLength={6}
                 value={inputCode}
                 onChange={(e) => setInputCode(e.target.value)}
@@ -236,6 +220,7 @@ export const LoginModal: React.FC<LoginModalProps> = ({
 
             <button
               type="submit"
+              disabled={isSending}
               className="w-full py-3 rounded-xl bg-gradient-to-r from-emerald-500 to-emerald-400 hover:from-emerald-400 hover:to-emerald-300 text-black font-extrabold text-xs tracking-wide transition-all shadow-[0_0_20px_rgba(16,185,129,0.3)] flex items-center justify-center gap-2 cursor-pointer"
             >
               <span>تأكيد الكود والدخول</span>
