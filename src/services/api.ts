@@ -30,10 +30,45 @@ import {
   ConnectionTestResult
 } from './MinecraftService';
 
+type AuthProfile = {
+  name: string;
+  email: string;
+  role: 'owner';
+};
+
+async function requestAuthentication<T>(endpoint: string, body: Record<string, string>) {
+  const response = await fetch(endpoint, {
+    method: 'POST',
+    credentials: 'same-origin',
+    headers: {
+      'Content-Type': 'application/json',
+      'Accept': 'application/json'
+    },
+    body: JSON.stringify(body)
+  });
+
+  const payload = await response.json().catch(() => ({}));
+  if (!response.ok) {
+    throw new Error(payload?.error || 'Authentication request failed.');
+  }
+
+  return payload as T;
+}
+
+export const authApi = {
+  requestLoginCode(email: string, password: string) {
+    return requestAuthentication<{ challengeId: string; expiresInSeconds: number }>('/api/auth/request-code', { email, password });
+  },
+  verifyLoginCode(challengeId: string, code: string) {
+    return requestAuthentication<{ profile: AuthProfile }>('/api/auth/verify-code', { challengeId, code });
+  }
+};
+
 export class RealMinecraftService implements IMinecraftService {
   private async request<T>(endpoint: string, options?: RequestInit): Promise<T> {
     try {
       const response = await fetch(endpoint, {
+        credentials: 'same-origin',
         headers: {
           'Content-Type': 'application/json',
           'Accept': 'application/json',
