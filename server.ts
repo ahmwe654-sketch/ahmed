@@ -1,4 +1,5 @@
-import express, { Request, Response } from 'express';
+import express, { type NextFunction, type Request, type Response } from 'express';
+import { createHash, randomBytes, randomInt, timingSafeEqual } from 'crypto';
 import path from 'path';
 import fs from 'fs';
 import { createServer as createViteServer } from 'vite';
@@ -7,9 +8,127 @@ import { MinecraftBridge } from './src/server/minecraftBridge';
 const app = express();
 const PORT = 3000;
 
-app.use(express.json());
+app.disable('x-powered-by');
+app.use(express.json({ limit: '16kb' }));
 
 const bridge = MinecraftBridge.getInstance();
+
+type AuthChallenge = {
+  email: string;
+  codeHash: string;
+  expiresAt: number;
+  attempts: number;
+};
+
+type AuthSession = {
+  email: string;
+  expiresAt: number;
+};
+
+const AUTH_SESSION_COOKIE = 'aegis_session';
+const AUTH_CODE_TTL_MS = 5 * 60 * 1000;
+const AUTH_SESSION_TTL_MS = 8 * 60 * 60 * 1000;
+const MAX_LOGIN_ATTEMPTS = 5;
+const MAX_CODE_ATTEMPTS = 5;
+
+const authConfig = {
+  adminEmail: (process.env.AUTH_ADMIN_EMAIL || '').trim().toLowerCase(),
+  adminPassword: process.env.AUTH_ADMIN_PASSWORD || '',
+  emailJsServiceId: process.env.EMAILJS_SERVICE_ID || '',
+  emailJsTemplateId: process.env.EMAILJS_TEMPLATE_ID || '',
+  emailJsPublicKey: process.env.EMAILJS_PUBLIC_KEY || ''
+};
+
+const authChallenges = new Map<string, AuthChallenge>();
+const authSessions = new Map<string, AuthSession>();
+const authRateLimits = new Map<string, { attempts: number; resetAt: number }>();
+
+function authIsConfigured() {
+  return Object.values(authConfig).every(Boolean);
+}
+
+function normalizeEmail(value: unknown) {
+  return typeof value === 'string' ? value.trim().toLowerCase() : '';
+}
+
+function safelyMatches(first: string, second: string) {
+  const firstBuffer = Buffer.from(first);
+  const secondBuffer = Buffer.from(second);
+  return firstBuffer.length === secondBuffer.length && timingSafeEqual(firstBuffer, secondBuffer);
+}
+
+function parseCookie(req: Request, name: string) {
+  const cookieHeader = req.headers.cookie;
+  if (!cookieHeader) return undefined;
+
+  const cookie = cookieHeader.split(';').map((item) => item.trim()).find((item) => item.startsWith(name + '='));
+  if (!cookie) return undefined;
+
+  try {
+    return decodeURIComponent(cookie.slice(name.length + 1));
+  } catch {
+    return undefined;
+  }
+}
+
+function sessionFromRequest(req: Request) {
+  const sessionId = parseCookie(req, AUTH_SESSION_COOKIE);
+  if (!sessionId) return undefined;
+
+  const session = authSessions.get(sessionId);
+  if (!session || session.expiresAt <= Date.now()) {
+    authSessions.delete(sessionId);
+    return undefined;
+  }
+
+  return { sessionId, session };
+}
+
+function isRateLimited(key: string, maxAttempts: number, windowMs: number) {
+  const now = Date.now();
+  const current = authRateLimits.get(key);
+
+  if (!current || current.resetAt <= now) {
+    authRateLimits.set(key, { attempts: 1, resetAt: now + windowMs });
+    return false;
+  }
+
+  if (current.attempts >= maxAttempts) return true;
+  current.attempts += 1;
+  return false;
+}
+
+async function sendVerificationCode(email: string, code: string) {
+  const response = await fetch('https://api.emailjs.com/api/v1.0/email/send', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    signal: AbortSignal.timeout(10_000),
+    body: JSON.stringify({
+      service_id: authConfig.emailJsServiceId,
+      template_id: authConfig.emailJsTemplateId,
+      user_id: authConfig.emailJsPublicKey,
+      template_params: {
+        email,
+        to_email: email,
+        passcode: code
+      }
+    })
+  });
+
+  if (!response.ok) {
+    throw new Error('The email provider rejected the verification request.');
+  }
+}
+
+function requireAuthenticatedUser(req: Request, res: Response, next: NextFunction) {
+  const activeSession = sessionFromRequest(req);
+  if (!activeSession) {
+    return res.status(401).json({ error: 'Authentication is required.' });
+  }
+
+  res.locals.authenticatedEmail = activeSession.session.email;
+  next();
+}
 
 // In-memory or filesystem persistent stores
 let customWaypoints: any[] = [
@@ -122,6 +241,117 @@ let worldGamerules: Record<string, any> = {
 // ============================================================================
 // API ROUTES
 // ============================================================================
+
+
+// Authentication routes must remain above the /api protection middleware.
+app.post('/api/auth/request-code', async (req: Request, res: Response) => {
+  if (!authIsConfigured()) {
+    return res.status(503).json({ error: 'Dashboard authentication has not been configured.' });
+  }
+
+  const email = normalizeEmail(req.body?.email);
+  const password = typeof req.body?.password === 'string' ? req.body.password : '';
+  const rateLimitKey = 'login:' + req.ip + ':' + email;
+
+  if (isRateLimited(rateLimitKey, MAX_LOGIN_ATTEMPTS, 15 * 60 * 1000)) {
+    return res.status(429).json({ error: 'Too many login attempts. Try again later.' });
+  }
+
+  if (!safelyMatches(email, authConfig.adminEmail) || !safelyMatches(password, authConfig.adminPassword)) {
+    return res.status(401).json({ error: 'Invalid email or password.' });
+  }
+
+  const challengeId = randomBytes(32).toString('base64url');
+  const code = randomInt(100000, 1_000_000).toString();
+  const expiresAt = Date.now() + AUTH_CODE_TTL_MS;
+
+  authChallenges.set(challengeId, {
+    email,
+    codeHash: createHash('sha256').update(challengeId + ':' + code).digest('hex'),
+    expiresAt,
+    attempts: 0
+  });
+
+  try {
+    await sendVerificationCode(email, code);
+    return res.status(202).json({
+      challengeId,
+      expiresInSeconds: Math.floor(AUTH_CODE_TTL_MS / 1000)
+    });
+  } catch (error) {
+    authChallenges.delete(challengeId);
+    console.error('[Auth] Unable to deliver verification code:', error);
+    return res.status(502).json({ error: 'Unable to send a verification code. Try again later.' });
+  }
+});
+
+app.post('/api/auth/verify-code', (req: Request, res: Response) => {
+  const challengeId = typeof req.body?.challengeId === 'string' ? req.body.challengeId : '';
+  const code = typeof req.body?.code === 'string' ? req.body.code.trim() : '';
+  const rateLimitKey = 'code:' + req.ip + ':' + challengeId;
+
+  if (isRateLimited(rateLimitKey, MAX_CODE_ATTEMPTS, 15 * 60 * 1000)) {
+    return res.status(429).json({ error: 'Too many verification attempts. Try again later.' });
+  }
+
+  const challenge = authChallenges.get(challengeId);
+  if (!challenge || challenge.expiresAt <= Date.now()) {
+    authChallenges.delete(challengeId);
+    return res.status(401).json({ error: 'The verification code is invalid or has expired.' });
+  }
+
+  if (!/^\d{6}$/.test(code) || !safelyMatches(
+    createHash('sha256').update(challengeId + ':' + code).digest('hex'),
+    challenge.codeHash
+  )) {
+    challenge.attempts += 1;
+    if (challenge.attempts >= MAX_CODE_ATTEMPTS) authChallenges.delete(challengeId);
+    return res.status(401).json({ error: 'The verification code is invalid or has expired.' });
+  }
+
+  authChallenges.delete(challengeId);
+  const sessionId = randomBytes(32).toString('base64url');
+  authSessions.set(sessionId, { email: challenge.email, expiresAt: Date.now() + AUTH_SESSION_TTL_MS });
+
+  res.cookie(AUTH_SESSION_COOKIE, sessionId, {
+    httpOnly: true,
+    secure: process.env.NODE_ENV === 'production',
+    sameSite: 'strict',
+    path: '/',
+    maxAge: AUTH_SESSION_TTL_MS
+  });
+
+  return res.json({
+    profile: {
+      name: challenge.email.split('@')[0],
+      email: challenge.email,
+      role: 'owner'
+    }
+  });
+});
+
+app.get('/api/auth/session', (req: Request, res: Response) => {
+  const activeSession = sessionFromRequest(req);
+  if (!activeSession) return res.status(401).json({ error: 'Authentication is required.' });
+
+  return res.json({
+    profile: {
+      name: activeSession.session.email.split('@')[0],
+      email: activeSession.session.email,
+      role: 'owner'
+    }
+  });
+});
+
+app.post('/api/auth/logout', (req: Request, res: Response) => {
+  const activeSession = sessionFromRequest(req);
+  if (activeSession) authSessions.delete(activeSession.sessionId);
+
+  res.clearCookie(AUTH_SESSION_COOKIE, { httpOnly: true, sameSite: 'strict', path: '/' });
+  return res.status(204).end();
+});
+
+app.use('/api', requireAuthenticatedUser);
 
 // 1. Server Status (Genuine live status from SLP Ping & RCON)
 app.get('/api/server/status', async (req: Request, res: Response) => {
